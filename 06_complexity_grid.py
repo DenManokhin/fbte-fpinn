@@ -1,45 +1,39 @@
 import os
+import sys
 import time
+import subprocess
 import torch
 import numpy as np
-os.environ["DDE_BACKEND"] = "pytorch"
-import deepxde as dde
-import matplotlib.pyplot as plt
 
-from src.physics import PARAMS
-from src.matrices import torch_riesz_matrix, torch_l1_matrix
-from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible
+# Only import DeepXDE if we are running the actual benchmark (to avoid context/memory leaks in the main plot wrapper)
+if "--run-benchmark-cpu" in sys.argv or "--run-benchmark-gpu" in sys.argv:
+    os.environ["DDE_BACKEND"] = "pytorch"
+    import deepxde as dde
+    from src.physics import PARAMS
+    from src.models import ForwardGridData
+    from src.utils import select_device, set_reproducible
 
-device = select_device()
-
-def get_peak_memory():
+def get_peak_memory(device):
     """Returns peak memory allocated on GPU in MB, or 0 if CPU."""
     if device.type == 'cuda':
         return torch.cuda.max_memory_allocated(device) / (1024 * 1024)
     elif device.type == 'mps':
-        # MPS doesn't have max_memory_allocated, we approximate with current.
-        # This will only be accurate if called right after the peak operation,
-        # but since Colab (CUDA) is the target, this is mostly a fallback.
         try:
             return torch.mps.current_allocated_memory() / (1024 * 1024)
         except:
             return 0.0
     return 0.0
 
-def run_grid_complexity_experiment():
-    print(f"--- Starting Grid Complexity Experiment on {device} ---")
+def run_single_benchmark():
+    device = select_device()
+    print(f"--- Running inner benchmark on {device} ---")
     
     n_space_list = [32, 64, 128]
     n_time_list = [50, 100, 200]
-    
     iterations = 500
     
-    results = {}
-
     for nx in n_space_list:
         for nt in n_time_list:
-            print(f"\nEvaluating Nx={nx}, Nt={nt}")
             set_reproducible(42)
             
             # Reset memory stats
@@ -79,55 +73,110 @@ def run_grid_complexity_experiment():
             
             total_time = end_time - start_time
             time_per_100 = (total_time / iterations) * 100
+            peak_mem = get_peak_memory(device)
             
-            peak_mem = get_peak_memory()
-            
-            results[(nx, nt)] = {
-                'time_per_100': time_per_100,
-                'peak_mem_mb': peak_mem
-            }
-            
-            print(f"Time for 100 epochs: {time_per_100:.3f} s")
-            if peak_mem > 0:
-                print(f"Peak VRAM: {peak_mem:.2f} MB")
+            # Output structured strings to be parsed by the wrapper
+            print(f"RES_TIME:{nx}:{nt}:{time_per_100}")
+            print(f"RES_MEM:{nx}:{nt}:{peak_mem}")
 
-    # Plot results
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+def run_grid_complexity_experiment():
+    import matplotlib.pyplot as plt
+    print("--- Starting Grid Complexity Experiment (CPU vs GPU) ---")
     
-    # 1. Time vs Nt for different Nx
-    ax = axes[0]
+    script_path = os.path.abspath(__file__)
+    python_exe = sys.executable
+    
+    results_cpu = {}
+    results_gpu = {}
+    
+    # 1. Run CPU Benchmark
+    print("Gathering CPU timings...")
+    cmd_cpu = [python_exe, script_path, "--run-benchmark-cpu", "--cpu"]
+    res_cpu = subprocess.run(cmd_cpu, capture_output=True, text=True)
+    for line in res_cpu.stdout.split('\n'):
+        if line.startswith("RES_TIME:"):
+            _, nx, nt, t = line.split(":")
+            results_cpu[(int(nx), int(nt))] = float(t)
+            
+    # 2. Run GPU Benchmark
+    print("Gathering GPU timings and VRAM...")
+    cmd_gpu = [python_exe, script_path, "--run-benchmark-gpu"]
+    res_gpu = subprocess.run(cmd_gpu, capture_output=True, text=True)
+    
+    mem_gpu = {}
+    for line in res_gpu.stdout.split('\n'):
+        if line.startswith("RES_TIME:"):
+            _, nx, nt, t = line.split(":")
+            results_gpu[(int(nx), int(nt))] = float(t)
+        elif line.startswith("RES_MEM:"):
+            _, nx, nt, mem = line.split(":")
+            mem_gpu[(int(nx), int(nt))] = float(mem)
+            
+    n_space_list = [32, 64, 128]
+    n_time_list = [50, 100, 200]
+    
+    # Check if CPU and GPU actually ran successfully
+    if not results_cpu or not results_gpu:
+        print("Error: Subprocesses failed to return data.")
+        print("CPU Error:", res_cpu.stderr)
+        print("GPU Error:", res_gpu.stderr)
+        return
+
+    # Plot results - Figure 1: Computation Time (CPU vs GPU)
+    fig_time, axes_time = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+    
+    # Plot 1a: CPU Time vs Nt
+    ax = axes_time[0]
     for nx in n_space_list:
-        times = [results[(nx, nt)]['time_per_100'] for nt in n_time_list]
+        times = [results_cpu.get((nx, nt), 0) for nt in n_time_list]
         ax.plot(n_time_list, times, marker='o', label=f'Nx={nx}')
     ax.set_xlabel('Number of Time Steps ($N_t$)')
     ax.set_ylabel('Training Time per 100 epochs (s)')
-    ax.set_title('Computational Time vs Grid Size')
+    ax.set_title('CPU Computational Time vs Grid Size')
+    ax.legend()
+    ax.grid(True)
+
+    # Plot 1b: GPU Time vs Nt
+    ax = axes_time[1]
+    for nx in n_space_list:
+        times = [results_gpu.get((nx, nt), 0) for nt in n_time_list]
+        ax.plot(n_time_list, times, marker='^', label=f'Nx={nx}')
+    ax.set_xlabel('Number of Time Steps ($N_t$)')
+    ax.set_title('GPU Computational Time vs Grid Size')
     ax.legend()
     ax.grid(True)
     
-    # 2. Memory vs Nt for different Nx
-    ax = axes[1]
+    fig_time.tight_layout()
+    fig_time.savefig('complexity_grid_time.png')
+    print("\nSaved time plots to complexity_grid_time.png")
+    
+    # Plot results - Figure 2: GPU Memory
+    fig_mem, ax_mem = plt.subplots(1, 1, figsize=(6, 5))
     has_mem_data = False
     for nx in n_space_list:
-        mems = [results[(nx, nt)]['peak_mem_mb'] for nt in n_time_list]
+        mems = [mem_gpu.get((nx, nt), 0) for nt in n_time_list]
         if any(m > 0 for m in mems):
             has_mem_data = True
-        ax.plot(n_time_list, mems, marker='s', linestyle='--', label=f'Nx={nx}')
+        ax_mem.plot(n_time_list, mems, marker='s', linestyle='--', label=f'Nx={nx}')
     
     if has_mem_data:
-        ax.set_xlabel('Number of Time Steps ($N_t$)')
-        ax.set_ylabel('Peak VRAM Allocated (MB)')
-        ax.set_title('Memory Footprint vs Grid Size')
-        ax.legend()
-        ax.grid(True)
+        ax_mem.set_xlabel('Number of Time Steps ($N_t$)')
+        ax_mem.set_ylabel('Peak VRAM Allocated (MB)')
+        ax_mem.set_title('GPU Memory Footprint vs Grid Size')
+        ax_mem.legend()
+        ax_mem.grid(True)
     else:
-        ax.set_title('Memory Footprint (N/A on CPU/MPS)')
-        ax.axis('off')
+        ax_mem.set_title('GPU Memory Footprint (N/A or CPU fallback)')
+        ax_mem.axis('off')
 
-    plt.tight_layout()
-    plt.savefig('complexity_grid.png')
-    print("Saved plot to complexity_grid.png")
+    fig_mem.tight_layout()
+    fig_mem.savefig('complexity_grid_vram.png')
+    print("Saved VRAM plot to complexity_grid_vram.png")
     plt.show()
 
 if __name__ == "__main__":
-    run_grid_complexity_experiment()
+    if "--run-benchmark-cpu" in sys.argv or "--run-benchmark-gpu" in sys.argv:
+        run_single_benchmark()
+    else:
+        run_grid_complexity_experiment()
