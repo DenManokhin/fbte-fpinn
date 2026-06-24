@@ -11,6 +11,11 @@ class ForwardGridData(dde.data.Data):
         self.device = device
         self.geom = dde.geometry.Interval(-1, 1)
 
+        dt = (self.p["T_RANGE"][1] - self.p["T_RANGE"][0]) / (self.p["N_TIME"] - 1)
+        domain_len = self.p["X_RANGE"][1] - self.p["X_RANGE"][0]
+        self.M_t = torch_l1_matrix(self.p["N_TIME"], self.p["ALPHA"], dt, self.device)
+        self.M_s = torch_riesz_matrix(self.p["N_SPACE"], self.p["BETA"], domain_len, self.device)
+
     def losses(self, targets, outputs, loss_fn, inputs, model, aux=None):
         x_loc = inputs[:, 0]
         t_loc = inputs[:, 1]
@@ -35,16 +40,10 @@ class ForwardGridData(dde.data.Data):
         v = outputs[:, 1:2].view(self.p["N_TIME"], self.p["N_SPACE"])
         x_grid_2d = x_loc.view(self.p["N_TIME"], self.p["N_SPACE"])
 
-        dt = (self.p["T_RANGE"][1] - self.p["T_RANGE"][0]) / (self.p["N_TIME"] - 1)
-        domain_len = self.p["X_RANGE"][1] - self.p["X_RANGE"][0]
-
-        M_t = torch_l1_matrix(self.p["N_TIME"], self.p["ALPHA"], dt, self.device)
-        M_s = torch_riesz_matrix(self.p["N_SPACE"], self.p["BETA"], domain_len, self.device)
-
-        u_t = torch.matmul(M_t, u)
-        u_xx = torch.matmul(u, M_s.T)
-        v_t = torch.matmul(M_t, v)
-        v_xx = torch.matmul(v, M_s.T)
+        u_t = torch.matmul(self.M_t, u)
+        u_xx = torch.matmul(u, self.M_s.T)
+        v_t = torch.matmul(self.M_t, v)
+        v_xx = torch.matmul(v, self.M_s.T)
 
         c_real = self.p["COUPLING_CONST"] * x_grid_2d * v
         c_imag = -self.p["COUPLING_CONST"] * x_grid_2d * u
