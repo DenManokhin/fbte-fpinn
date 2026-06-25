@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-from scipy.special import gamma
+from scipy.special import gamma, gammaln
+
 
 def get_l1_weights(n, alpha, dt):
     """L1 finite difference weights for Caputo time derivative (NumPy)."""
@@ -14,7 +15,15 @@ def get_riesz_matrix_np(n, beta, dx):
     idx = np.arange(n)
     i, j = np.meshgrid(idx, idx, indexing='ij')
     k = np.abs(i - j)
-    w_k = ((-1.0)**k) * gamma(beta + 1) / (gamma(beta/2.0 - k + 1) * gamma(beta/2.0 + k + 1))
+    
+    x1 = beta / 2.0 - k + 1.0
+    x2 = beta / 2.0 + k + 1.0
+    
+    log_num = gammaln(beta + 1.0)
+    log_den = gammaln(x1) + gammaln(x2)
+    
+    sign1 = np.where(x1 < 0, (-1.0) ** (np.floor(-x1) + 1.0), 1.0)
+    w_k = ((-1.0)**k) * sign1 * np.exp(log_num - log_den)
     return w_k / (dx**beta)
 
 def torch_riesz_matrix(n, order, domain_len, dev):
