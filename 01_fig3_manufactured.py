@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
 from src.models import MMSData
-from src.utils import select_device, set_reproducible, calculate_metrics, configure_precision
+from src.utils import select_device, set_reproducible, calculate_metrics, save_metrics_to_csv, configure_precision
 
 device = select_device()
 configure_precision(device)
@@ -85,6 +85,21 @@ def run_experiment():
     # Plotting
     u_true_np = u_exact.cpu().numpy()
     v_true_np = v_exact.cpu().numpy()
+
+    print("\n--- Evaluation Metrics ---")
+    u_metrics = calculate_metrics(u_true_np, u_pred)
+    print("Real Component (u) Metrics:")
+    for name, val in u_metrics.items():
+        print(f"  {name}: {val:.4e}")
+
+    v_metrics = calculate_metrics(v_true_np, v_pred)
+    print("Imaginary Component (v) Metrics:")
+    for name, val in v_metrics.items():
+        print(f"  {name}: {val:.4e}")
+    print("--------------------------\n")
+
+    save_metrics_to_csv(u_metrics, v_metrics, "results/metrics_01_manufactured.csv")
+    print("Metrics saved to results/metrics_01_manufactured.csv")
 
     fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 

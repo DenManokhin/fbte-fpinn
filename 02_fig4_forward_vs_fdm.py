@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, calculate_metrics, save_metrics_to_csv
 
 device = select_device()
 configure_precision(device)
@@ -74,8 +74,20 @@ def run_experiment():
     plt.tight_layout()
     plt.show()
 
-    print(f"\nFinal Mean Squared Error (u): {np.mean((u_fdm - u_pred)**2):.2e}")
-    print(f"Final Mean Squared Error (v): {np.mean((v_fdm - v_pred)**2):.2e}")
+    print("\n--- Evaluation Metrics (vs FDM) ---")
+    u_metrics = calculate_metrics(u_fdm, u_pred)
+    print("Real Component (u) Metrics:")
+    for name, val in u_metrics.items():
+        print(f"  {name}: {val:.4e}")
+
+    v_metrics = calculate_metrics(v_fdm, v_pred)
+    print("Imaginary Component (v) Metrics:")
+    for name, val in v_metrics.items():
+        print(f"  {name}: {val:.4e}")
+    print("-----------------------------------\n")
+
+    save_metrics_to_csv(u_metrics, v_metrics, "results/metrics_02_forward_vs_fdm.csv")
+    print("Metrics saved to results/metrics_02_forward_vs_fdm.csv")
 
 if __name__ == "__main__":
     run_experiment()
