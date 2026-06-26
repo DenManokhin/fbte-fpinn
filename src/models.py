@@ -98,3 +98,30 @@ class MMSData(dde.data.Data):
 
     def train_next_batch(self, batch_size=None): return self.train_x, self.train_y
     def test(self): return self.train_x, self.train_y
+
+class MMSData2D(dde.data.Data):
+    def __init__(self, X_train, pde_loss_fn, u_exact, v_exact, params):
+        self.train_x = X_train
+        self.train_y = None
+        self.pde_loss_fn = pde_loss_fn
+        self.u_exact = u_exact
+        self.v_exact = v_exact
+        self.p = params
+
+    def losses(self, targets, outputs, loss_fn, inputs, model, aux=None):
+        pde_err = self.pde_loss_fn(inputs, outputs)
+        l_pde = torch.mean(pde_err**2)
+
+        u_net = outputs[:, 0:1].view(self.p["N_TIME_2D"], self.p["N_SPACE_X"], self.p["N_SPACE_Y"])
+        v_net = outputs[:, 1:2].view(self.p["N_TIME_2D"], self.p["N_SPACE_X"], self.p["N_SPACE_Y"])
+
+        l_ic = torch.mean((u_net[0, :, :] - self.u_exact[0, :, :])**2) + torch.mean((v_net[0, :, :] - self.v_exact[0, :, :])**2)
+        l_bc = torch.mean(u_net[:, 0, :]**2) + torch.mean(u_net[:, -1, :]**2) + \
+               torch.mean(u_net[:, :, 0]**2) + torch.mean(u_net[:, :, -1]**2) + \
+               torch.mean(v_net[:, 0, :]**2) + torch.mean(v_net[:, -1, :]**2) + \
+               torch.mean(v_net[:, :, 0]**2) + torch.mean(v_net[:, :, -1]**2)
+
+        return [1 * l_pde + 100 * l_ic + 100 * l_bc]
+
+    def train_next_batch(self, batch_size=None): return self.train_x, self.train_y
+    def test(self): return self.train_x, self.train_y
