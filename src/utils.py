@@ -18,6 +18,20 @@ def select_device():
         return torch.device("cpu")
     return torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
+def configure_precision(device):
+    """Configures global precision for PyTorch and DeepXDE based on the device."""
+    import deepxde as dde
+    if device.type == "mps":
+        # Apple Silicon MPS does not support float64
+        dde.config.set_default_float("float32")
+        torch.set_default_dtype(torch.float32)
+        print("MPS detected. Precision set to float32.")
+    else:
+        # Default to float64 for better numerical stability in finite difference matrices
+        dde.config.set_default_float("float64")
+        torch.set_default_dtype(torch.float64)
+        print("Precision set to float64.")
+
 def set_reproducible(seed=42):
     """Sets all random seeds for reproducibility (Python, NumPy, PyTorch, DeepXDE)."""
     import random

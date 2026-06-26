@@ -9,9 +9,10 @@ from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import InverseGridData
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
-from src.utils import add_gaussian_noise, select_device, set_reproducible
+from src.utils import add_gaussian_noise, select_device, set_reproducible, configure_precision
 
 device = select_device()
+configure_precision(device)
 set_reproducible(42)
 
 def run_experiment():
@@ -22,7 +23,7 @@ def run_experiment():
     x_g, t_g, u_fdm, v_fdm = fdm.solve()
     
     XX, TT = np.meshgrid(x_g, t_g)
-    grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(np.float32)
+    grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
     
     snrs = [50, 20, 10, 5]
     all_alpha_history = {}
@@ -34,7 +35,7 @@ def run_experiment():
         # Add noise
         u_noisy = add_gaussian_noise(u_fdm, snr)
         v_noisy = add_gaussian_noise(v_fdm, snr)
-        y_patient = np.hstack((u_noisy.flatten()[:, None], v_noisy.flatten()[:, None])).astype(np.float32)
+        y_patient = np.hstack((u_noisy.flatten()[:, None], v_noisy.flatten()[:, None])).astype(dde.config.real(np))
 
         alpha_raw = dde.Variable(0.0)
         beta_raw = dde.Variable(0.0)

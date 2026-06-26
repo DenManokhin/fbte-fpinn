@@ -9,10 +9,11 @@ import deepxde as dde
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, configure_precision
 
 dde.config.set_default_float("float32")
 device = select_device()
+configure_precision(device)
 
 def main():
     set_reproducible(42)
@@ -45,8 +46,8 @@ def main():
         # 2. fPINN Benchmark
         # ---------------------------------------------------------
         # Create 1D Grid
-        x_grid = np.linspace(PARAMS["X_RANGE"][0], PARAMS["X_RANGE"][1], PARAMS["N_SPACE"], dtype=np.float32)
-        t_grid = np.linspace(PARAMS["T_RANGE"][0], PARAMS["T_RANGE"][1], PARAMS["N_TIME"], dtype=np.float32)
+        x_grid = np.linspace(PARAMS["X_RANGE"][0], PARAMS["X_RANGE"][1], PARAMS["N_SPACE"], dtype=dde.config.real(np))
+        t_grid = np.linspace(PARAMS["T_RANGE"][0], PARAMS["T_RANGE"][1], PARAMS["N_TIME"], dtype=dde.config.real(np))
         X, T = np.meshgrid(x_grid, t_grid)
         X_flat = np.vstack((X.flatten(), T.flatten())).T
         

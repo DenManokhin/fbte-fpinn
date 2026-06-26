@@ -11,10 +11,11 @@ if "--run-benchmark" in sys.argv:
     import deepxde as dde
     from src.physics import PARAMS
     from src.models import ForwardGridData
-    from src.utils import select_device, set_reproducible
+    from src.utils import select_device, set_reproducible, configure_precision
 
 def run_single_benchmark():
     device = select_device()
+configure_precision(device)
     set_reproducible(42)
     
     run_params = PARAMS.copy()
@@ -24,8 +25,8 @@ def run_single_benchmark():
     x_vals = np.linspace(run_params["X_RANGE"][0], run_params["X_RANGE"][1], run_params["N_SPACE"])
     t_vals = np.linspace(run_params["T_RANGE"][0], run_params["T_RANGE"][1], run_params["N_TIME"])
     X, T = np.meshgrid(x_vals, t_vals)
-    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(np.float32)
-    x_grid = torch.tensor(grid_np, dtype=torch.float32, device=device)
+    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(dde.config.real(np))
+    x_grid = torch.tensor(grid_np, dtype=torch.get_default_dtype(), device=device)
 
     data = ForwardGridData(x_grid, run_params, device)
     net = dde.nn.FNN([2] + [64]*4 + [2], "tanh", "Glorot normal")

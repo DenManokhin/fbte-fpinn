@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 
 from src.physics import PARAMS
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, configure_precision
 
 device = select_device()
+configure_precision(device)
 
 def get_peak_memory():
     """Returns peak memory allocated on GPU in MB, or 0 if CPU."""
@@ -45,8 +46,8 @@ def run_arch_complexity_experiment():
     x_vals = np.linspace(run_params["X_RANGE"][0], run_params["X_RANGE"][1], run_params["N_SPACE"])
     t_vals = np.linspace(run_params["T_RANGE"][0], run_params["T_RANGE"][1], run_params["N_TIME"])
     X, T = np.meshgrid(x_vals, t_vals)
-    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(np.float32)
-    x_grid = torch.tensor(grid_np, dtype=torch.float32, device=device)
+    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(dde.config.real(np))
+    x_grid = torch.tensor(grid_np, dtype=torch.get_default_dtype(), device=device)
 
     for arch_name, arch_shape in architectures.items():
         print(f"\nEvaluating Architecture: {arch_name} -> {arch_shape}")

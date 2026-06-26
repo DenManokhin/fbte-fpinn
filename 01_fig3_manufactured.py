@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
 from src.models import MMSData
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, calculate_metrics, configure_precision
 
 device = select_device()
+configure_precision(device)
 set_reproducible(42)
 
 def run_experiment():
@@ -20,10 +21,10 @@ def run_experiment():
     x_vals = np.linspace(PARAMS["X_RANGE"][0], PARAMS["X_RANGE"][1], PARAMS["N_SPACE"])
     t_vals = np.linspace(PARAMS["T_RANGE"][0], PARAMS["T_RANGE"][1], PARAMS["N_TIME"])
     X, T = np.meshgrid(x_vals, t_vals)
-    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(np.float32)
+    grid_np = np.hstack((X.flatten()[:, None], T.flatten()[:, None])).astype(dde.config.real(np))
 
-    x_grid = torch.tensor(X, dtype=torch.float32, device=device)
-    t_grid = torch.tensor(T, dtype=torch.float32, device=device)
+    x_grid = torch.tensor(X, dtype=torch.get_default_dtype(), device=device)
+    t_grid = torch.tensor(T, dtype=torch.get_default_dtype(), device=device)
 
     # 1. Exact Functions
     u_exact = (t_grid ** 2) * torch.sin(math.pi * x_grid)

@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, configure_precision
 
 device = select_device()
+configure_precision(device)
 set_reproducible(42)
 
 def run_experiment():
@@ -21,11 +22,11 @@ def run_experiment():
     x_g, t_g, u_fdm, v_fdm = fdm.solve()
 
     XX, TT = np.meshgrid(x_g, t_g)
-    X_flat = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(np.float32)
+    X_flat = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
 
     # 2. Train Forward fPINN
     print("\n[fPINN] Training Forward Model...")
-    data = ForwardGridData(torch.tensor(X_flat, dtype=torch.float32, device=device), PARAMS, device)
+    data = ForwardGridData(torch.tensor(X_flat, dtype=torch.get_default_dtype(), device=device), PARAMS, device)
     net = dde.nn.FNN([2] + [60]*4 + [2], "tanh", "Glorot normal")
     model = dde.Model(data, net)
 

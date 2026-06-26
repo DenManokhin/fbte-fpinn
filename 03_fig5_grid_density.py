@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, configure_precision
 
 device = select_device()
+configure_precision(device)
 set_reproducible(42)
 
 def run_experiment():
@@ -20,7 +21,7 @@ def run_experiment():
     fdm = FDMSolver(PARAMS)
     x_g, t_g, u_fdm, v_fdm = fdm.solve()
     XX, TT = np.meshgrid(x_g, t_g)
-    X_flat_dense = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(np.float32)
+    X_flat_dense = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
 
     k_values = [1, 2, 4, 8]
     mses_u = []
@@ -35,9 +36,9 @@ def run_experiment():
         x_vals = np.linspace(p["X_RANGE"][0], p["X_RANGE"][1], p["N_SPACE"])
         t_vals = np.linspace(p["T_RANGE"][0], p["T_RANGE"][1], p["N_TIME"])
         XX_k, TT_k = np.meshgrid(x_vals, t_vals)
-        X_flat_k = np.hstack((XX_k.flatten()[:, None], TT_k.flatten()[:, None])).astype(np.float32)
+        X_flat_k = np.hstack((XX_k.flatten()[:, None], TT_k.flatten()[:, None])).astype(dde.config.real(np))
 
-        data = ForwardGridData(torch.tensor(X_flat_k, dtype=torch.float32, device=device), p, device)
+        data = ForwardGridData(torch.tensor(X_flat_k, dtype=torch.get_default_dtype(), device=device), p, device)
         net = dde.nn.FNN([2] + [60]*4 + [2], "tanh", "Glorot normal")
         model = dde.Model(data, net)
 

@@ -26,11 +26,13 @@ def get_riesz_matrix_np(n, beta, dx):
     w_k = ((-1.0)**k) * sign1 * np.exp(log_num - log_den)
     return w_k / (dx**beta)
 
-def torch_riesz_matrix(n, order, domain_len, dev):
+def torch_riesz_matrix(n, order, domain_len, dev, dtype=None):
     """Differentiable Riesz matrix generator (PyTorch)."""
-    order = torch.as_tensor(order, dtype=torch.float32, device=dev)
+    if dtype is None:
+        dtype = torch.get_default_dtype()
+    order = torch.as_tensor(order, dtype=dtype, device=dev)
     h = domain_len / (n - 1)
-    idx = torch.arange(n, dtype=torch.float32, device=dev)
+    idx = torch.arange(n, dtype=dtype, device=dev)
     i, j = torch.meshgrid(idx, idx, indexing='ij')
     k = torch.abs(i - j)
 
@@ -44,10 +46,12 @@ def torch_riesz_matrix(n, order, domain_len, dev):
     weights = ((-1.0) ** k) * sign1 * torch.exp(log_num - log_den)
     return weights * (1.0 / (h ** order))
 
-def torch_l1_matrix(n, order, dt, dev):
+def torch_l1_matrix(n, order, dt, dev, dtype=None):
     """Differentiable L1 matrix generator for Caputo derivative (PyTorch)."""
-    order = torch.as_tensor(order, dtype=torch.float32, device=dev)
-    k = torch.arange(n, dtype=torch.float32, device=dev)
+    if dtype is None:
+        dtype = torch.get_default_dtype()
+    order = torch.as_tensor(order, dtype=dtype, device=dev)
+    k = torch.arange(n, dtype=dtype, device=dev)
     b_k = torch.pow(k + 1, 1.0 - order) - torch.pow(k, 1.0 - order)
     scale = 1.0 / (dt**order * torch.exp(torch.lgamma(2.0 - order)))
 

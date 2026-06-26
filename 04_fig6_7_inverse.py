@@ -9,9 +9,10 @@ from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import InverseGridData
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
-from src.utils import select_device, set_reproducible
+from src.utils import select_device, set_reproducible, configure_precision
 
 device = select_device()
+configure_precision(device)
 set_reproducible(42)
 
 def run_experiment(multi_stage=True):
@@ -22,8 +23,8 @@ def run_experiment(multi_stage=True):
     x_g, t_g, u_fdm, v_fdm = fdm.solve()
     
     XX, TT = np.meshgrid(x_g, t_g)
-    grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(np.float32)
-    y_patient = np.hstack((u_fdm.flatten()[:, None], v_fdm.flatten()[:, None])).astype(np.float32)
+    grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
+    y_patient = np.hstack((u_fdm.flatten()[:, None], v_fdm.flatten()[:, None])).astype(dde.config.real(np))
 
     # 2. Setup Inverse Model
     alpha_raw = dde.Variable(0.0)
