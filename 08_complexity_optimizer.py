@@ -110,7 +110,7 @@ def run_optimizer_experiment():
     ax.grid(True)
     
     plt.tight_layout()
-    plt.savefig('complexity_optimizer.png')
+    plt.savefig("results/complexity_optimizer.png")
     print("Saved plot to complexity_optimizer.png")
     plt.show()
 

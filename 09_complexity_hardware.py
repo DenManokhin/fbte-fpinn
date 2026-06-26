@@ -119,7 +119,7 @@ def run_hardware_comparison():
         axes[1].text(i, v + 0.001, f"{v:.4f}s", ha='center', va='bottom')
         
     plt.tight_layout()
-    plt.savefig('complexity_hardware.png')
+    plt.savefig("results/complexity_hardware.png")
     print("\nSaved plot to complexity_hardware.png")
     plt.show()
 

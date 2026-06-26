@@ -96,7 +96,7 @@ def main():
     plt.legend()
     plt.grid(True, which="both", ls="--", alpha=0.7)
     plt.tight_layout()
-    plt.savefig("complexity_fdm_compare.png", dpi=300)
+    plt.savefig("results/complexity_fdm_compare.png", dpi=300)
     plt.close()
     print("\nSaved plot to complexity_fdm_compare.png")
 

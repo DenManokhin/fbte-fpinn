@@ -116,6 +116,7 @@ def run_experiment():
     axs[1].grid(True)
 
     plt.tight_layout()
+    plt.savefig("results/05_fig8_9_inverse_noise.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":

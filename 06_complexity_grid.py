@@ -174,6 +174,7 @@ def run_grid_complexity_experiment():
     fig_mem.tight_layout()
     fig_mem.savefig('complexity_grid_vram.png')
     print("Saved VRAM plot to complexity_grid_vram.png")
+    plt.savefig("results/06_complexity_grid.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":

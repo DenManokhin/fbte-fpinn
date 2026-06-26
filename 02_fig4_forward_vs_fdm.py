@@ -72,6 +72,7 @@ def run_experiment():
     axs[1, 1].set_title("Ground Truth FDM (Real Part)")
 
     plt.tight_layout()
+    plt.savefig("results/02_fig4_forward_vs_fdm.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     print("\n--- Evaluation Metrics (vs FDM) ---")

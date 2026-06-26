@@ -101,6 +101,7 @@ def run_experiment(multi_stage=True):
     plt.ylabel("Value")
     plt.legend()
     plt.grid(True)
+    plt.savefig("results/04_fig6_7_inverse.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":

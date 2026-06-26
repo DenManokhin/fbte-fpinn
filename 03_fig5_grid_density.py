@@ -68,6 +68,7 @@ def run_experiment():
     plt.title('MSE vs Grid Density Reduction')
     plt.legend()
     plt.grid(True)
+    plt.savefig("results/03_fig5_grid_density.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":

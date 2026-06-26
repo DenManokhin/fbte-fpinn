@@ -132,7 +132,7 @@ def run_arch_complexity_experiment():
         ax.axis('off')
 
     plt.tight_layout()
-    plt.savefig('complexity_architecture.png')
+    plt.savefig("results/complexity_architecture.png")
     print("Saved plot to complexity_architecture.png")
     plt.show()
 

@@ -126,6 +126,7 @@ def run_experiment():
     axs[1, 2].set_title(f"Absolute Error (Max: {np.max(v_err):.4f})")
 
     plt.tight_layout()
+    plt.savefig("results/01_fig3_manufactured.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
