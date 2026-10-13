@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import lu_factor, lu_solve
 from src.matrices import get_l1_weights, get_riesz_matrix_np
 
 class FDMSolver:
@@ -17,7 +18,7 @@ class FDMSolver:
         S = get_riesz_matrix_np(n_s, beta, self.dx)
         b = get_l1_weights(self.p["N_TIME"], alpha, self.dt)
 
-        Op_diag = b[0] * np.eye(n_s) + self.p["DIFFUSION"] * S + self.p["RELAX"] * np.eye(n_s)
+        Op_diag = b[0] * np.eye(n_s) - self.p["DIFFUSION"] * S + self.p["RELAX"] * np.eye(n_s)
         Coupling = np.diag(self.p["COUPLING_CONST"] * self.x_grid)
 
         Top = np.hstack([Op_diag, -Coupling])
@@ -30,6 +31,9 @@ class FDMSolver:
         LHS[n_s, :] = 0; LHS[n_s, n_s] = 1
         LHS[-1, :] = 0; LHS[-1, -1] = 1
 
+        # LHS does not depend on the time step, so it is factorized once (eq. 24)
+        lu_piv = lu_factor(LHS)
+
         u = np.exp(-10 * self.x_grid**2)
         v = np.zeros_like(self.x_grid)
         u[0] = u[-1] = 0
@@ -39,17 +43,16 @@ class FDMSolver:
         history_u[0] = u
 
         for n in range(1, self.p["N_TIME"]):
-            hist_u = np.zeros_like(u)
-            hist_v = np.zeros_like(v)
-            for k in range(1, n+1):
-                w = b[k-1] - b[k] if k < n else b[n-1]
-                hist_u += w * history_u[n-k]
-                hist_v += w * history_v[n-k]
+            # History term of the L1 scheme: sum_k w_k * state[n-k], k = 1..n,
+            # with w_k = b_{k-1} - b_k for k < n and w_n = b_{n-1}
+            w = b[:n] - np.append(b[1:n], 0.0)
+            hist_u = w @ history_u[n-1::-1]
+            hist_v = w @ history_v[n-1::-1]
 
             rhs = np.concatenate([hist_u, hist_v])
             rhs[0] = rhs[n_s-1] = rhs[n_s] = rhs[-1] = 0 # BCs for RHS
 
-            sol = np.linalg.solve(LHS, rhs)
+            sol = lu_solve(lu_piv, rhs)
             history_u[n], history_v[n] = sol[:n_s], sol[n_s:]
 
         return self.x_grid, self.t_grid, history_u, history_v

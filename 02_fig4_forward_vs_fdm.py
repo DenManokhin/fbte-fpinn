@@ -8,11 +8,12 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision, calculate_metrics, save_metrics_to_csv
+from src.utils import select_device, set_reproducible, configure_precision, calculate_metrics, save_metrics_to_csv, ensure_results_dir
 
 device = select_device()
 configure_precision(device)
 set_reproducible(42)
+ensure_results_dir()
 
 def run_experiment():
     print(f"Using compute device: {device}")
@@ -27,7 +28,7 @@ def run_experiment():
     # 2. Train Forward fPINN
     print("\n[fPINN] Training Forward Model...")
     data = ForwardGridData(torch.tensor(X_flat, dtype=torch.get_default_dtype(), device=device), PARAMS, device)
-    net = dde.nn.FNN([2] + [60]*4 + [2], "tanh", "Glorot normal")
+    net = dde.nn.FNN([2] + [64]*4 + [2], "tanh", "Glorot normal")
     model = dde.Model(data, net)
 
     # Weight the IC and BC higher

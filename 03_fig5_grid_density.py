@@ -8,11 +8,12 @@ import matplotlib.pyplot as plt
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, ensure_results_dir
 
 device = select_device()
 configure_precision(device)
 set_reproducible(42)
+ensure_results_dir()
 
 def run_experiment():
     print(f"Using compute device: {device}")
@@ -39,7 +40,7 @@ def run_experiment():
         X_flat_k = np.hstack((XX_k.flatten()[:, None], TT_k.flatten()[:, None])).astype(dde.config.real(np))
 
         data = ForwardGridData(torch.tensor(X_flat_k, dtype=torch.get_default_dtype(), device=device), p, device)
-        net = dde.nn.FNN([2] + [60]*4 + [2], "tanh", "Glorot normal")
+        net = dde.nn.FNN([2] + [64]*4 + [2], "tanh", "Glorot normal")
         model = dde.Model(data, net)
 
         model.compile("adam", lr=1e-3, loss_weights=[100, 100, 1])
