@@ -5,14 +5,15 @@ import torch
 os.environ["DDE_BACKEND"] = "pytorch"
 import deepxde as dde
 import matplotlib.pyplot as plt
-from src.physics import PARAMS
+from src.physics import PARAMS, fbte_residual, interior_mask
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
 from src.models import MMSData
-from src.utils import select_device, set_reproducible, calculate_metrics, save_metrics_to_csv, configure_precision
+from src.utils import select_device, set_reproducible, calculate_metrics, save_metrics_to_csv, configure_precision, ensure_results_dir
 
 device = select_device()
 configure_precision(device)
 set_reproducible(42)
+ensure_results_dir()
 
 def run_experiment():
     print("--- Starting MMS Verification ---")
@@ -37,36 +38,18 @@ def run_experiment():
     M_space = torch_riesz_matrix(PARAMS["N_SPACE"], PARAMS["BETA"], domain_len, device)
     M_time = torch_l1_matrix(PARAMS["N_TIME"], PARAMS["ALPHA"], dt, device)
 
-    u_t_exact = torch.matmul(M_time, u_exact)
-    v_t_exact = torch.matmul(M_time, v_exact)
-
-    u_xx_exact = torch.matmul(u_exact, M_space.T)
-    v_xx_exact = torch.matmul(v_exact, M_space.T)
-
-    # 3. Assemble Forcing Terms
-    c_real = PARAMS["COUPLING"] * x_grid * v_exact
-    c_imag = -PARAMS["COUPLING"] * x_grid * u_exact
-
-    f_real = u_t_exact - PARAMS["DIFFUSION"] * u_xx_exact + c_real + PARAMS["RELAX"] * u_exact
-    f_imag = v_t_exact - PARAMS["DIFFUSION"] * v_xx_exact + c_imag + PARAMS["RELAX"] * v_exact
+    # 3. Assemble Forcing Terms: the residual of the exact solution under the same
+    # discrete FBTE operator that is used in all other experiments
+    f_real, f_imag = fbte_residual(u_exact, v_exact, x_grid, M_time, M_space, PARAMS)
 
     def pde_loss_fn(x, y):
         u = y[:, 0:1].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
         v = y[:, 1:2].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
         x_loc = x[:, 0:1].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
 
-        u_t = torch.matmul(M_time, u)
-        v_t = torch.matmul(M_time, v)
-        u_xx = torch.matmul(u, M_space.T)
-        v_xx = torch.matmul(v, M_space.T)
+        res_u, res_v = fbte_residual(u, v, x_loc, M_time, M_space, PARAMS, f_real, f_imag)
 
-        c_real_net = PARAMS["COUPLING"] * x_loc * v
-        c_imag_net = -PARAMS["COUPLING"] * x_loc * u
-
-        res_u = u_t - PARAMS["DIFFUSION"]*u_xx + c_real_net + PARAMS["RELAX"]*u - f_real.view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
-        res_v = v_t - PARAMS["DIFFUSION"]*v_xx + c_imag_net + PARAMS["RELAX"]*v - f_imag.view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
-
-        mask = torch.ones_like(u); mask[0, :] = 0
+        mask = interior_mask(u)
         return torch.cat([(res_u * mask).view(-1, 1), (res_v * mask).view(-1, 1)], dim=1)
 
     data = MMSData(grid_np, pde_loss_fn, u_exact, v_exact, PARAMS)

@@ -1,15 +1,22 @@
 import torch
 import deepxde as dde
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
+from src.physics import fbte_residual, interior_mask
+
+
+def gaussian_ic(x):
+    """Initial magnetization u(x, 0) = exp(-10 x^2), v(x, 0) = 0 used in eq. (27)."""
+    return torch.exp(-10 * x**2)
+
 
 class ForwardGridData(dde.data.Data):
     """Custom Data class to rigidly enforce IC/BCs and PDE."""
-    def __init__(self, X_grid, params, device):
+    def __init__(self, X_grid, params, device, u0=gaussian_ic):
         self.train_x = X_grid
         self.train_y = X_grid # Not used directly
         self.p = params
         self.device = device
-        self.geom = dde.geometry.Interval(-1, 1)
+        self.u0 = u0
 
         dt = (self.p["T_RANGE"][1] - self.p["T_RANGE"][0]) / (self.p["N_TIME"] - 1)
         domain_len = self.p["X_RANGE"][1] - self.p["X_RANGE"][0]
@@ -20,13 +27,15 @@ class ForwardGridData(dde.data.Data):
         x_loc = inputs[:, 0]
         t_loc = inputs[:, 1]
 
-        is_ic = torch.isclose(t_loc, torch.tensor(0.0, device=self.device))
-        is_bc = torch.isclose(torch.abs(x_loc), torch.tensor(1.0, device=self.device))
+        x_min, x_max = self.p["X_RANGE"]
+        is_ic = torch.isclose(t_loc, torch.tensor(float(self.p["T_RANGE"][0]), device=self.device))
+        is_bc = torch.isclose(x_loc, torch.tensor(float(x_min), device=self.device)) | \
+                torch.isclose(x_loc, torch.tensor(float(x_max), device=self.device))
 
         # Enforce IC
         u_pred_ic = outputs[is_ic, 0]
         v_pred_ic = outputs[is_ic, 1]
-        u_true_ic = torch.exp(-10 * x_loc[is_ic]**2)
+        u_true_ic = self.u0(x_loc[is_ic])
         v_true_ic = torch.zeros_like(u_true_ic)
         loss_ic = torch.mean((u_pred_ic - u_true_ic)**2) + torch.mean((v_pred_ic - v_true_ic)**2)
 
@@ -40,18 +49,9 @@ class ForwardGridData(dde.data.Data):
         v = outputs[:, 1:2].view(self.p["N_TIME"], self.p["N_SPACE"])
         x_grid_2d = x_loc.view(self.p["N_TIME"], self.p["N_SPACE"])
 
-        u_t = torch.matmul(self.M_t, u)
-        u_xx = torch.matmul(u, self.M_s.T)
-        v_t = torch.matmul(self.M_t, v)
-        v_xx = torch.matmul(v, self.M_s.T)
+        res_real, res_imag = fbte_residual(u, v, x_grid_2d, self.M_t, self.M_s, self.p)
 
-        c_real = self.p["COUPLING_CONST"] * x_grid_2d * v
-        c_imag = -self.p["COUPLING_CONST"] * x_grid_2d * u
-
-        res_real = u_t + self.p["DIFFUSION"] * u_xx - c_real + self.p["RELAX"] * u
-        res_imag = v_t + self.p["DIFFUSION"] * v_xx - c_imag + self.p["RELAX"] * v
-
-        mask = torch.ones_like(u, device=self.device); mask[0, :] = 0
+        mask = interior_mask(u)
         loss_pde = torch.mean((res_real * mask)**2) + torch.mean((res_imag * mask)**2)
 
         return [loss_ic, loss_bc, loss_pde]
@@ -64,7 +64,6 @@ class InverseGridData(dde.data.Data):
         self.train_x = X_train
         self.train_y = y_train
         self.pde_func = pde_func
-        self.geom = dde.geometry.Interval(-1, 1)
 
     def losses(self, targets, outputs, loss_fn, inputs, model, aux=None):
         loss_data = torch.mean((outputs - targets) ** 2)
