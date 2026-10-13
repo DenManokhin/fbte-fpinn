@@ -15,7 +15,7 @@ if "--run-benchmark" in sys.argv:
 
 def run_single_benchmark():
     device = select_device()
-configure_precision(device)
+    configure_precision(device)
     set_reproducible(42)
     
     run_params = PARAMS.copy()
@@ -70,6 +70,7 @@ configure_precision(device)
 def run_hardware_comparison():
     import matplotlib.pyplot as plt
     print("--- Starting Hardware Complexity Experiment ---")
+    os.makedirs("results", exist_ok=True)
     
     script_path = os.path.abspath(__file__)
     python_exe = sys.executable
@@ -120,7 +121,7 @@ def run_hardware_comparison():
         
     plt.tight_layout()
     plt.savefig("results/complexity_hardware.png")
-    print("\nSaved plot to complexity_hardware.png")
+    print("\nSaved plot to results/complexity_hardware.png")
     plt.show()
 
 if __name__ == "__main__":

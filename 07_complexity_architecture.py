@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 
 from src.physics import PARAMS
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, ensure_results_dir
 
 device = select_device()
 configure_precision(device)
+ensure_results_dir()
 
 def get_peak_memory():
     """Returns peak memory allocated on GPU in MB, or 0 if CPU."""
@@ -133,7 +134,7 @@ def run_arch_complexity_experiment():
 
     plt.tight_layout()
     plt.savefig("results/complexity_architecture.png")
-    print("Saved plot to complexity_architecture.png")
+    print("Saved plot to results/complexity_architecture.png")
     plt.show()
 
 if __name__ == "__main__":

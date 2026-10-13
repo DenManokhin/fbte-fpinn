@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 
 from src.physics import PARAMS
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, ensure_results_dir
 
 device = select_device()
 configure_precision(device)
+ensure_results_dir()
 
 class TimerCallback(dde.callbacks.Callback):
     def __init__(self):
@@ -111,7 +112,7 @@ def run_optimizer_experiment():
     
     plt.tight_layout()
     plt.savefig("results/complexity_optimizer.png")
-    print("Saved plot to complexity_optimizer.png")
+    print("Saved plot to results/complexity_optimizer.png")
     plt.show()
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ def get_peak_memory(device):
 
 def run_single_benchmark():
     device = select_device()
-configure_precision(device)
+    configure_precision(device)
     print(f"--- Running inner benchmark on {device} ---")
     
     n_space_list = [32, 64, 128]
@@ -84,6 +84,7 @@ configure_precision(device)
 def run_grid_complexity_experiment():
     import matplotlib.pyplot as plt
     print("--- Starting Grid Complexity Experiment (CPU vs GPU) ---")
+    os.makedirs("results", exist_ok=True)
     
     script_path = os.path.abspath(__file__)
     python_exe = sys.executable
@@ -149,8 +150,8 @@ def run_grid_complexity_experiment():
     ax.grid(True)
     
     fig_time.tight_layout()
-    fig_time.savefig('complexity_grid_time.png')
-    print("\nSaved time plots to complexity_grid_time.png")
+    fig_time.savefig('results/06_complexity_grid_time.png', dpi=300, bbox_inches="tight")
+    print("\nSaved time plots to results/06_complexity_grid_time.png")
     
     # Plot results - Figure 2: GPU Memory
     fig_mem, ax_mem = plt.subplots(1, 1, figsize=(6, 5))
@@ -172,9 +173,8 @@ def run_grid_complexity_experiment():
         ax_mem.axis('off')
 
     fig_mem.tight_layout()
-    fig_mem.savefig('complexity_grid_vram.png')
-    print("Saved VRAM plot to complexity_grid_vram.png")
-    plt.savefig("results/06_complexity_grid.png", dpi=300, bbox_inches="tight")
+    fig_mem.savefig('results/06_complexity_grid_vram.png', dpi=300, bbox_inches="tight")
+    print("Saved VRAM plot to results/06_complexity_grid_vram.png")
     plt.show()
 
 if __name__ == "__main__":
