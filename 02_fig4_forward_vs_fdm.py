@@ -44,32 +44,29 @@ def run_experiment():
     v_pred = y_pred[:, 1].reshape(PARAMS["N_TIME"], PARAMS["N_SPACE"])
 
     # 4. Visualization
-    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
-    mid_idx = PARAMS["N_TIME"] // 2
+    axs[0, 0].imshow(u_fdm, aspect='auto', extent=[-1, 1, 1, 0], cmap='jet')
+    axs[0, 0].set_title("FDM Real (u)")
 
-    # Compare Real Field (u)
-    axs[0, 0].plot(x_g, u_fdm[mid_idx, :], 'k-', linewidth=2, label='FDM')
-    axs[0, 0].plot(x_g, u_pred[mid_idx, :], 'r--', linewidth=2, label='fPINN')
-    axs[0, 0].set_title(f"Real Magnetization (u) at t={t_g[mid_idx]:.2f}")
-    axs[0, 0].legend()
+    axs[0, 1].imshow(u_pred, aspect='auto', extent=[-1, 1, 1, 0], cmap='jet')
+    axs[0, 1].set_title("Predicted Real (u)")
 
-    # Compare Imaginary Field (v)
-    axs[0, 1].plot(x_g, v_fdm[mid_idx, :], 'k-', linewidth=2, label='FDM')
-    axs[0, 1].plot(x_g, v_pred[mid_idx, :], 'b--', linewidth=2, label='fPINN')
-    axs[0, 1].set_title(f"Imaginary Magnetization (v) at t={t_g[mid_idx]:.2f}")
-    axs[0, 1].legend()
+    u_err = np.abs(u_fdm - u_pred)
+    im = axs[0, 2].imshow(u_err, aspect='auto', extent=[-1, 1, 1, 0], cmap='inferno')
+    plt.colorbar(im, ax=axs[0, 2])
+    axs[0, 2].set_title(f"Absolute Error (Max: {np.max(u_err):.4f})")
 
-    # Real Error Heatmap
-    err_u = np.abs(u_fdm - u_pred)
-    im1 = axs[1, 0].imshow(err_u, aspect='auto', extent=[-1, 1, 1, 0], cmap='inferno')
-    plt.colorbar(im1, ax=axs[1, 0], label='Abs Error')
-    axs[1, 0].set_title("Absolute Error Map (Real Part)")
+    axs[1, 0].imshow(v_fdm, aspect='auto', extent=[-1, 1, 1, 0], cmap='jet')
+    axs[1, 0].set_title("FDM Imaginary (v)")
 
-    # Real Ground Truth Heatmap
-    im2 = axs[1, 1].imshow(u_fdm, aspect='auto', extent=[-1, 1, 1, 0], cmap='viridis')
-    plt.colorbar(im2, ax=axs[1, 1], label='Magnitude')
-    axs[1, 1].set_title("Ground Truth FDM (Real Part)")
+    axs[1, 1].imshow(v_pred, aspect='auto', extent=[-1, 1, 1, 0], cmap='jet')
+    axs[1, 1].set_title("Predicted Imaginary (v)")
+
+    v_err = np.abs(v_fdm - v_pred)
+    im = axs[1, 2].imshow(v_err, aspect='auto', extent=[-1, 1, 1, 0], cmap='inferno')
+    plt.colorbar(im, ax=axs[1, 2])
+    axs[1, 2].set_title(f"Absolute Error (Max: {np.max(v_err):.4f})")
 
     plt.tight_layout()
     plt.savefig("results/02_fig4_forward_vs_fdm.png", dpi=300, bbox_inches="tight")
