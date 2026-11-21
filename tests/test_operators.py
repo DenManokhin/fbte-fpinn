@@ -74,6 +74,13 @@ def test_fdm_solution_decays():
     assert np.allclose(u[:, [0, -1]], 0, atol=1e-12) and np.allclose(v[:, [0, -1]], 0, atol=1e-12)
 
 
+def test_fdm_uses_given_initial_condition():
+    p = {**PARAMS, **INVERSE_GRID}
+    u0 = lambda x: 1 - x ** 2
+    x, _, u, v = FDMSolver(p, u0=u0).solve()
+    assert np.allclose(u[0], u0(x)) and np.all(v[0] == 0)
+
+
 @pytest.mark.parametrize("grid", [INVERSE_GRID, {"N_SPACE": 64, "N_TIME": 100}])
 def test_fdm_solution_satisfies_pinn_residual(grid):
     # The PINN residual and the FDM solver must describe the same equation,

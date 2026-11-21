@@ -1,10 +1,12 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from src.matrices import get_l1_weights, get_riesz_matrix_np
+from src.physics import gaussian_ic
 
 class FDMSolver:
-    def __init__(self, params):
+    def __init__(self, params, u0=gaussian_ic):
         self.p = params
+        self.u0 = u0
         self.dt = (self.p["T_RANGE"][1] - self.p["T_RANGE"][0]) / (self.p["N_TIME"] - 1)
         self.dx = (self.p["X_RANGE"][1] - self.p["X_RANGE"][0]) / (self.p["N_SPACE"] - 1)
         self.x_grid = np.linspace(self.p["X_RANGE"][0], self.p["X_RANGE"][1], self.p["N_SPACE"])
@@ -34,7 +36,7 @@ class FDMSolver:
         # LHS does not depend on the time step, so it is factorized once (eq. 24)
         lu_piv = lu_factor(LHS)
 
-        u = np.exp(-10 * self.x_grid**2)
+        u = np.asarray(self.u0(self.x_grid), dtype=np.float64)
         v = np.zeros_like(self.x_grid)
         u[0] = u[-1] = 0
 

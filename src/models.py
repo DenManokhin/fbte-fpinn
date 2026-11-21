@@ -1,12 +1,7 @@
 import torch
 import deepxde as dde
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
-from src.physics import fbte_residual, interior_mask
-
-
-def gaussian_ic(x):
-    """Initial magnetization u(x, 0) = exp(-10 x^2), v(x, 0) = 0 used in eq. (27)."""
-    return torch.exp(-10 * x**2)
+from src.physics import fbte_residual, interior_mask, gaussian_ic
 
 
 class ForwardGridData(dde.data.Data):

@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 PARAMS = {
@@ -17,6 +18,15 @@ PARAMS["COUPLING"] = PARAMS["COUPLING_CONST"]
 
 # The inverse problem (scripts 04 and 05) uses a coarser 16x25 grid, as stated in the paper.
 INVERSE_GRID = {"N_SPACE": 16, "N_TIME": 25}
+
+
+def gaussian_ic(x):
+    """Initial magnetization u(x, 0) = exp(-10 x^2), v(x, 0) = 0 used in eq. (27).
+
+    Works on NumPy arrays (FDM solver) and torch tensors (PINN loss).
+    """
+    exp = torch.exp if torch.is_tensor(x) else np.exp
+    return exp(-10 * x**2)
 
 
 def fbte_residual(u, v, x, M_t, M_s, p, f_u=None, f_v=None):
