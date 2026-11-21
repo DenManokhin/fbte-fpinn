@@ -9,11 +9,11 @@ import deepxde as dde
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
 from src.models import ForwardGridData
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, ensure_results_dir
 
-dde.config.set_default_float("float32")
 device = select_device()
 configure_precision(device)
+ensure_results_dir()
 
 def main():
     set_reproducible(42)
@@ -29,13 +29,12 @@ def main():
     
     for N in grid_sizes:
         print(f"\n--- Benchmarking Grid Size N_x = N_t = {N} ---")
-        PARAMS["N_SPACE"] = N
-        PARAMS["N_TIME"] = N
+        P = {**PARAMS, "N_SPACE": N, "N_TIME": N}
         
         # ---------------------------------------------------------
         # 1. FDM Benchmark (Time-to-Solution from scratch)
         # ---------------------------------------------------------
-        fdm = FDMSolver(PARAMS)
+        fdm = FDMSolver(P)
         start_t = time.time()
         fdm.solve()
         fdm_time = time.time() - start_t
@@ -46,12 +45,12 @@ def main():
         # 2. fPINN Benchmark
         # ---------------------------------------------------------
         # Create 1D Grid
-        x_grid = np.linspace(PARAMS["X_RANGE"][0], PARAMS["X_RANGE"][1], PARAMS["N_SPACE"], dtype=dde.config.real(np))
-        t_grid = np.linspace(PARAMS["T_RANGE"][0], PARAMS["T_RANGE"][1], PARAMS["N_TIME"], dtype=dde.config.real(np))
+        x_grid = np.linspace(P["X_RANGE"][0], P["X_RANGE"][1], P["N_SPACE"], dtype=dde.config.real(np))
+        t_grid = np.linspace(P["T_RANGE"][0], P["T_RANGE"][1], P["N_TIME"], dtype=dde.config.real(np))
         X, T = np.meshgrid(x_grid, t_grid)
         X_flat = np.vstack((X.flatten(), T.flatten())).T
         
-        data = ForwardGridData(X_flat, PARAMS, device)
+        data = ForwardGridData(X_flat, P, device)
         net = dde.nn.FNN([2] + [64] * 4 + [2], "tanh", "Glorot normal")
         model = dde.Model(data, net)
         model.compile("adam", lr=1e-3)
@@ -98,7 +97,7 @@ def main():
     plt.tight_layout()
     plt.savefig("results/complexity_fdm_compare.png", dpi=300)
     plt.close()
-    print("\nSaved plot to complexity_fdm_compare.png")
+    print("\nSaved plot to results/complexity_fdm_compare.png")
 
 if __name__ == "__main__":
     main()

@@ -3,12 +3,28 @@ import sys
 import numpy as np
 import torch
 
-def add_gaussian_noise(data, snr):
-    """Adds Gaussian noise to the data based on desired SNR."""
-    signal_power = np.mean(data ** 2)
-    noise_power = signal_power / snr
-    noise = np.random.normal(0, np.sqrt(noise_power), data.shape)
-    return data + noise
+RESULTS_DIR = "results"
+
+def ensure_results_dir():
+    """Creates the results directory (it is git-ignored, so a fresh clone does not have it)."""
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    return RESULTS_DIR
+
+def add_complex_gaussian_noise(u, v, snr):
+    """Adds zero-mean Gaussian noise to both components with SNR as defined in eq. (28).
+
+    SNR = max(sqrt(u^2 + v^2)) / sigma, with the same sigma for the real and imaginary parts.
+    """
+    sigma = np.max(np.sqrt(u ** 2 + v ** 2)) / snr
+    u_noisy = u + np.random.normal(0, sigma, u.shape)
+    v_noisy = v + np.random.normal(0, sigma, v.shape)
+    return u_noisy, v_noisy
+
+def parse_seed(default=42):
+    """Reads --seed N from the command line, so experiments can be repeated over several seeds."""
+    if "--seed" in sys.argv:
+        return int(sys.argv[sys.argv.index("--seed") + 1])
+    return default
 
 def select_device():
     """Selects the compute device. Reverts PyTorch to CPU if CPU execution is forced."""

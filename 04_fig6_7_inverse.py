@@ -5,23 +5,28 @@ os.environ["DDE_BACKEND"] = "pytorch"
 import deepxde as dde
 import matplotlib.pyplot as plt
 
-from src.physics import PARAMS
+from src.physics import PARAMS, INVERSE_GRID, fbte_residual, interior_mask
 from src.fdm_solver import FDMSolver
 from src.models import InverseGridData
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
-from src.utils import select_device, set_reproducible, configure_precision
+from src.utils import select_device, set_reproducible, configure_precision, ensure_results_dir, parse_seed
 
 device = select_device()
 configure_precision(device)
-set_reproducible(42)
+SEED = parse_seed()
+set_reproducible(SEED)
+ensure_results_dir()
+
+# Inverse problem is solved on the 16x25 grid described in the paper
+P = {**PARAMS, **INVERSE_GRID}
 
 def run_experiment(multi_stage=True):
-    print(f"--- Inverse Problem (Multi-stage={multi_stage}) ---")
-    
+    print(f"--- Inverse Problem (Multi-stage={multi_stage}, grid {P['N_SPACE']}x{P['N_TIME']}, seed={SEED}) ---")
+
     # 1. Generate Synthetic Patient Scan using FDM as ground truth
-    fdm = FDMSolver(PARAMS)
+    fdm = FDMSolver(P)
     x_g, t_g, u_fdm, v_fdm = fdm.solve()
-    
+
     XX, TT = np.meshgrid(x_g, t_g)
     grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
     y_patient = np.hstack((u_fdm.flatten()[:, None], v_fdm.flatten()[:, None])).astype(dde.config.real(np))
@@ -36,28 +41,19 @@ def run_experiment(multi_stage=True):
         curr_alpha = torch.sigmoid(alpha_raw)
         curr_beta = 1.0 + torch.sigmoid(beta_raw)
 
-        dt = (PARAMS["T_RANGE"][1] - PARAMS["T_RANGE"][0]) / (PARAMS["N_TIME"] - 1)
-        domain_len = PARAMS["X_RANGE"][1] - PARAMS["X_RANGE"][0]
+        dt = (P["T_RANGE"][1] - P["T_RANGE"][0]) / (P["N_TIME"] - 1)
+        domain_len = P["X_RANGE"][1] - P["X_RANGE"][0]
 
-        M_t = torch_l1_matrix(PARAMS["N_TIME"], curr_alpha, dt, device)
-        M_s = torch_riesz_matrix(PARAMS["N_SPACE"], curr_beta, domain_len, device)
+        M_t = torch_l1_matrix(P["N_TIME"], curr_alpha, dt, device)
+        M_s = torch_riesz_matrix(P["N_SPACE"], curr_beta, domain_len, device)
 
-        u = y[:, 0:1].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
-        v = y[:, 1:2].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
-        x_loc = x[:, 0:1].view(PARAMS["N_TIME"], PARAMS["N_SPACE"])
+        u = y[:, 0:1].view(P["N_TIME"], P["N_SPACE"])
+        v = y[:, 1:2].view(P["N_TIME"], P["N_SPACE"])
+        x_loc = x[:, 0:1].view(P["N_TIME"], P["N_SPACE"])
 
-        u_t = torch.matmul(M_t, u)
-        u_xx = torch.matmul(u, M_s.T)
-        v_t = torch.matmul(M_t, v)
-        v_xx = torch.matmul(v, M_s.T)
+        res_real, res_imag = fbte_residual(u, v, x_loc, M_t, M_s, P)
 
-        c_real = PARAMS["COUPLING_CONST"] * x_loc * v
-        c_imag = -PARAMS["COUPLING_CONST"] * x_loc * u
-
-        res_real = u_t + PARAMS["DIFFUSION"] * u_xx - c_real + PARAMS["RELAX"] * u
-        res_imag = v_t + PARAMS["DIFFUSION"] * v_xx - c_imag + PARAMS["RELAX"] * v
-
-        mask = torch.ones_like(u); mask[0, :] = 0
+        mask = interior_mask(u)
         return torch.cat([(res_real*mask).view(-1,1), (res_imag*mask).view(-1,1)], dim=1)
 
     data_inv = InverseGridData(grid_np, y_patient, pde_inverse)
@@ -88,22 +84,27 @@ def run_experiment(multi_stage=True):
         model_inv.compile("adam", lr=1e-3, loss_weights=[100, 1], external_trainable_variables=[alpha_raw, beta_raw])
         model_inv.train(iterations=20000, callbacks=[RecordVars()], batch_size=len(grid_np))
 
+    stage = "multi" if multi_stage else "single"
+    np.savez(f"results/04_inverse_{stage}_seed{SEED}.npz",
+             alpha=np.array(alpha_history), beta=np.array(beta_history),
+             alpha_true=P["ALPHA"], beta_true=P["BETA"])
+
     # Plotting
-    print(f"\nFINAL RECOVERY:\nAlpha: {alpha_history[-1]:.4f} (True: {PARAMS['ALPHA']})\nBeta:  {beta_history[-1]:.4f} (True: {PARAMS['BETA']})")
+    print(f"\nFINAL RECOVERY:\nAlpha: {alpha_history[-1]:.4f} (True: {P['ALPHA']})\nBeta:  {beta_history[-1]:.4f} (True: {P['BETA']})")
 
     plt.figure(figsize=(10, 5))
     plt.plot(alpha_history, label='Alpha (Pred)', linewidth=2)
-    plt.axhline(PARAMS['ALPHA'], color='k', linestyle='--', label='Alpha (True)')
+    plt.axhline(P['ALPHA'], color='k', linestyle='--', label='Alpha (True)')
     plt.plot(beta_history, label='Beta (Pred)', linewidth=2)
-    plt.axhline(PARAMS['BETA'], color='r', linestyle='--', label='Beta (True)')
+    plt.axhline(P['BETA'], color='r', linestyle='--', label='Beta (True)')
     plt.title(f"Parameter Convergence History (Multi-stage={multi_stage})")
     plt.xlabel("Epochs (x1000)")
     plt.ylabel("Value")
     plt.legend()
     plt.grid(True)
-    plt.savefig("results/04_fig6_7_inverse.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"results/04_inverse_{stage}_seed{SEED}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
-    run_experiment(multi_stage=False) # Fig 6
-    run_experiment(multi_stage=True)  # Fig 7
+    run_experiment(multi_stage=False) # Single-stage training
+    run_experiment(multi_stage=True)  # Multi-stage training
