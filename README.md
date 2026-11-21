@@ -37,7 +37,7 @@ Every script is run from the repository root and writes its figures and tables i
 |---|---|---|
 | `01_fig3_manufactured.py` | Table 1, Fig. 7 | Forward problem against a manufactured solution |
 | `02_fig4_forward_vs_fdm.py` | Table 2, Fig. 8 | Forward problem against the implicit FDM solution |
-| `03_fig5_grid_density.py` | Fig. 9 | fPINN error when the collocation grid is coarsened by k |
+| `03_fig5_grid_density.py` | Fig. 9 | fPINN error when each grid dimension is divided by k (5 seeds; `--seeds N`), compared with the coarse-grid FDM solution interpolated to 64 × 100 |
 | `04_fig6_7_inverse.py` | Figs. 10–11 | Recovery of α and β, single-stage and multi-stage training |
 | `05_fig8_9_inverse_noise.py` | Figs. 12–13 | Noisy data example and recovery of α and β from noisy data, SNR = 50, 20, 10, 5 |
 | `06_complexity_grid.py` | Figs. 3–4 | Training time (CPU and GPU) and GPU memory vs grid size |
