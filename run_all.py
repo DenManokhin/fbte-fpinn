@@ -80,7 +80,8 @@ def build_tables():
     if files:
         data = [np.load(f) for f in files]
         for i, snr in enumerate(data[0]["snrs"]):
-            rows.append((f"SNR {snr}", len(files), [d["alpha"][i, -1] for d in data], [d["beta"][i, -1] for d in data]))
+            case = f"SNR {snr:g}" if np.isfinite(snr) else "no noise (05)"
+            rows.append((case, len(files), [d["alpha"][i, -1] for d in data], [d["beta"][i, -1] for d in data]))
 
     if rows:
         lines += ["## Inverse problem (04, 05): mean ± std over seeds", "",

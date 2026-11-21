@@ -20,6 +20,10 @@ ensure_results_dir()
 # Inverse problem is solved on the 16x25 grid described in the paper
 P = {**PARAMS, **INVERSE_GRID}
 
+def label(snr):
+    return f"SNR={snr}" if np.isfinite(snr) else "clean data"
+
+
 def run_experiment():
     print(f"--- Inverse Problem with Noise (grid {P['N_SPACE']}x{P['N_TIME']}, seed={SEED}) ---")
 
@@ -30,16 +34,21 @@ def run_experiment():
     XX, TT = np.meshgrid(x_g, t_g)
     grid_np = np.hstack((XX.flatten()[:, None], TT.flatten()[:, None])).astype(dde.config.real(np))
 
-    snrs = [50, 20, 10, 5]
+    # np.inf is the clean-data reference curve; it runs last so the noisy runs keep their random streams
+    snrs = [50, 20, 10, 5, np.inf]
+    noisy_snrs = [s for s in snrs if np.isfinite(s)]
     all_alpha_history = {}
     all_beta_history = {}
     noisy_u = {}
 
     for snr in snrs:
-        print(f"\n--- Testing with SNR = {snr} ---")
+        print(f"\n--- Testing with {label(snr)} ---")
 
         # Add noise with SNR = max|M| / sigma, eq. (28)
-        u_noisy, v_noisy = add_complex_gaussian_noise(u_fdm, v_fdm, snr)
+        if np.isfinite(snr):
+            u_noisy, v_noisy = add_complex_gaussian_noise(u_fdm, v_fdm, snr)
+        else:
+            u_noisy, v_noisy = u_fdm, v_fdm
         noisy_u[snr] = u_noisy
         y_patient = np.hstack((u_noisy.flatten()[:, None], v_noisy.flatten()[:, None])).astype(dde.config.real(np))
 
@@ -100,8 +109,8 @@ def run_experiment():
 
     # Example of the noisy data (Fig. 12): real part at the middle time point
     mid = P["N_TIME"] // 2
-    fig, axs = plt.subplots(1, len(snrs), figsize=(4 * len(snrs), 3.5), sharey=True)
-    for ax, snr in zip(axs, snrs):
+    fig, axs = plt.subplots(1, len(noisy_snrs), figsize=(4 * len(noisy_snrs), 3.5), sharey=True)
+    for ax, snr in zip(axs, noisy_snrs):
         ax.plot(x_g, noisy_u[snr][mid], 'o', markersize=3, label='Noisy data')
         ax.plot(x_g, u_fdm[mid], 'k-', label='FDM')
         ax.set_title(f"SNR = {snr}, t = {t_g[mid]:.2f}")
@@ -115,8 +124,8 @@ def run_experiment():
     # Plotting
     fig, axs = plt.subplots(1, 2, figsize=(14, 5))
     for snr in snrs:
-        axs[0].plot(all_alpha_history[snr], label=f'Alpha (SNR={snr})')
-        axs[1].plot(all_beta_history[snr], label=f'Beta (SNR={snr})')
+        axs[0].plot(all_alpha_history[snr], label=f'Alpha ({label(snr)})')
+        axs[1].plot(all_beta_history[snr], label=f'Beta ({label(snr)})')
 
     axs[0].axhline(P['ALPHA'], color='k', linestyle='--', label='True Alpha')
     axs[0].set_title("Alpha Convergence under Noise")
