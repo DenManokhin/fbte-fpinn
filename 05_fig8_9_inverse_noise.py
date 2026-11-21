@@ -33,12 +33,14 @@ def run_experiment():
     snrs = [50, 20, 10, 5]
     all_alpha_history = {}
     all_beta_history = {}
+    noisy_u = {}
 
     for snr in snrs:
         print(f"\n--- Testing with SNR = {snr} ---")
 
         # Add noise with SNR = max|M| / sigma, eq. (28)
         u_noisy, v_noisy = add_complex_gaussian_noise(u_fdm, v_fdm, snr)
+        noisy_u[snr] = u_noisy
         y_patient = np.hstack((u_noisy.flatten()[:, None], v_noisy.flatten()[:, None])).astype(dde.config.real(np))
 
         alpha_raw = dde.Variable(0.0)
@@ -95,6 +97,20 @@ def run_experiment():
              alpha=np.array([all_alpha_history[s] for s in snrs]),
              beta=np.array([all_beta_history[s] for s in snrs]),
              alpha_true=P["ALPHA"], beta_true=P["BETA"])
+
+    # Example of the noisy data (Fig. 12): real part at the middle time point
+    mid = P["N_TIME"] // 2
+    fig, axs = plt.subplots(1, len(snrs), figsize=(4 * len(snrs), 3.5), sharey=True)
+    for ax, snr in zip(axs, snrs):
+        ax.plot(x_g, noisy_u[snr][mid], 'o', markersize=3, label='Noisy data')
+        ax.plot(x_g, u_fdm[mid], 'k-', label='FDM')
+        ax.set_title(f"SNR = {snr}, t = {t_g[mid]:.2f}")
+        ax.set_xlabel("x")
+        ax.grid(True)
+    axs[0].set_ylabel("u")
+    axs[0].legend()
+    plt.tight_layout()
+    plt.savefig(f"results/05_fig12_noisy_data_seed{SEED}.png", dpi=300, bbox_inches="tight")
 
     # Plotting
     fig, axs = plt.subplots(1, 2, figsize=(14, 5))

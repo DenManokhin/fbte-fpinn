@@ -19,6 +19,17 @@ PyTorch is installed from PyPI. For a CUDA build, install `torch` from the PyTor
 
 ## Running the experiments
 
+To run all experiments of the paper and collect the tables:
+
+```bash
+python run_all.py                  # seeds 42 1 2 3 4 for the inverse problem
+python run_all.py --only 04 05     # selected scripts
+python run_all.py --tables-only    # rebuild the tables from existing results
+```
+
+Logs go to `results/logs/`, Tables 1–2 and the mean ± std of the recovered α and β to
+`results/tables.md` and `results/table_inverse.csv`. See `python run_all.py --help` for all options.
+
 Every script is run from the repository root and writes its figures and tables into `results/`
 (created on the first run).
 
@@ -28,7 +39,7 @@ Every script is run from the repository root and writes its figures and tables i
 | `02_fig4_forward_vs_fdm.py` | Table 2, Fig. 8 | Forward problem against the implicit FDM solution |
 | `03_fig5_grid_density.py` | Fig. 9 | fPINN error when the collocation grid is coarsened by k |
 | `04_fig6_7_inverse.py` | Figs. 10–11 | Recovery of α and β, single-stage and multi-stage training |
-| `05_fig8_9_inverse_noise.py` | Fig. 13 | Recovery of α and β from noisy data, SNR = 50, 20, 10, 5 |
+| `05_fig8_9_inverse_noise.py` | Figs. 12–13 | Noisy data example and recovery of α and β from noisy data, SNR = 50, 20, 10, 5 |
 | `06_complexity_grid.py` | Figs. 3–4 | Training time (CPU and GPU) and GPU memory vs grid size |
 | `07_complexity_architecture.py` | Fig. 5 | Training time and memory vs network size |
 | `08_complexity_optimizer.py` | – | Adam vs Adam + L-BFGS |
