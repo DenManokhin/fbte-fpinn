@@ -15,7 +15,8 @@ study robustness to noise; any non-default option writes to results/05_inverse_n
   --ic-bc W         weight of a loss on the known IC u(x,0)=exp(-10x^2), v(x,0)=0 and the zero
                     Dirichlet BC, the same prior knowledge the FDM + least-squares baseline uses (default: 0)
   --val-frac F      hold out a fraction F of the grid points from the data loss and report alpha, beta
-                    at the step with the lowest held-out data error (early stopping) (default: 0)
+                    at the stage-2 step with the lowest held-out data error (early stopping; with --lbfgs
+                    the L-BFGS result is only kept in the history) (default: 0)
   --snrs S [S ...]  noise levels to run, "inf" for clean data (default: 50 20 10 5 inf)
   --tag NAME        name of the output files for a non-default setting
 """
@@ -158,7 +159,7 @@ def run_experiment():
             def ic_bc_loss(inputs, outputs, model):
                 u = outputs[:, 0].view(P["N_TIME"], P["N_SPACE"])
                 v = outputs[:, 1].view(P["N_TIME"], P["N_SPACE"])
-                ic = torch.mean((u[0] - u0.to(u)) ** 2) + torch.mean(v[0] ** 2)
+                ic = torch.mean((u[0] - u0.to(u.device).to(u.dtype)) ** 2) + torch.mean(v[0] ** 2)
                 bc = torch.mean(u[:, [0, -1]] ** 2) + torch.mean(v[:, [0, -1]] ** 2)
                 return ic + bc
             extra_losses.append(ic_bc_loss)
