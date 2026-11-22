@@ -18,6 +18,7 @@ import sys
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import NullFormatter
 from scipy.optimize import least_squares
 
 from src.physics import PARAMS, INVERSE_GRID
@@ -123,6 +124,7 @@ def run_experiment():
         ax.axhline(true, color="k", ls="--", label=f"true {name}")
         ax.set_xscale("log")
         ax.set_xticks(noisy, [str(s) for s in noisy])
+        ax.xaxis.set_minor_formatter(NullFormatter())
         ax.invert_xaxis()
         ax.set_xlabel("SNR")
         ax.set_ylabel(name)
