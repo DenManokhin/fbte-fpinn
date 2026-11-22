@@ -9,6 +9,7 @@ study robustness to noise; any non-default option writes to results/05_inverse_n
   --w-pde-start W   ramp the PDE weight geometrically from W to --w-pde over stage 2 (default: off)
   --stage1 N        stage-1 iterations, data only, alpha and beta fixed (paper: 5000)
   --stage2 N        stage-2 iterations, data + PDE (paper: 15000)
+  --lbfgs N         after stage 2, up to N L-BFGS iterations with the stage-2 weights (default: 0, off)
   --width N, --depth N   hidden layers of the network (paper: 40, 3)
   --l2 W            weight of an L2 penalty on the network weights (not alpha, beta) (default: 0)
   --ic-bc W         weight of a loss on the known IC u(x,0)=exp(-10x^2), v(x,0)=0 and the zero
@@ -33,7 +34,7 @@ from src.models import InverseGridData
 from src.matrices import torch_riesz_matrix, torch_l1_matrix
 from src.utils import add_complex_gaussian_noise, select_device, set_reproducible, configure_precision, ensure_results_dir, parse_seed
 
-PAPER = dict(w_data=100.0, w_pde=1.0, w_pde_start=None, stage1=5000, stage2=15000, width=40, depth=3,
+PAPER = dict(w_data=100.0, w_pde=1.0, w_pde_start=None, stage1=5000, stage2=15000, lbfgs=0, width=40, depth=3,
              l2=0.0, ic_bc=0.0, val_frac=0.0)
 ALL_SNRS = [50, 20, 10, 5, np.inf]
 
@@ -47,6 +48,7 @@ def parse_options():
     ap.add_argument("--w-pde-start", type=float, default=PAPER["w_pde_start"])
     ap.add_argument("--stage1", type=int, default=PAPER["stage1"])
     ap.add_argument("--stage2", type=int, default=PAPER["stage2"])
+    ap.add_argument("--lbfgs", type=int, default=PAPER["lbfgs"])
     ap.add_argument("--width", type=int, default=PAPER["width"])
     ap.add_argument("--depth", type=int, default=PAPER["depth"])
     ap.add_argument("--l2", type=float, default=PAPER["l2"])
@@ -224,6 +226,14 @@ def run_experiment():
         model_inv.compile("adam", lr=1e-3, loss_weights=[CFG["w_data"], w_pde0] + extra_weights,
                           external_trainable_variables=[alpha_raw, beta_raw])
         model_inv.train(iterations=CFG["stage2"], callbacks=stage2_callbacks, batch_size=len(grid_np))
+
+        if CFG["lbfgs"] > 0:
+            # L-BFGS steps by a variable number of iterations, so the values are recorded once at the end
+            dde.optimizers.set_LBFGS_options(maxiter=CFG["lbfgs"])
+            model_inv.compile("L-BFGS", loss_weights=[CFG["w_data"], CFG["w_pde"]] + extra_weights,
+                              external_trainable_variables=[alpha_raw, beta_raw])
+            model_inv.train(batch_size=len(grid_np))
+            record_variables(model_inv)
 
         if best["step"] is not None:
             final[snr] = (best["alpha"], best["beta"])
