@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 RESULTS = "results"
-PAPER = ["01", "02", "03", "04", "05", "06", "07", "10"]
+PAPER = ["01", "02", "03", "04", "05", "06", "07", "10", "12"]
 COMPLEXITY = ["06", "07", "10"]
 EXTRA = ["08", "09"]
 SEEDED = ["04", "05"]
@@ -60,7 +60,9 @@ def build_tables():
     lines = []
 
     for key, title in [("01_manufactured", "Table 1: fPINN vs manufactured solution (01)"),
-                       ("02_forward_vs_fdm", "Table 2: fPINN vs FDM (02)")]:
+                       ("02_forward_vs_fdm", "Table 2: fPINN vs FDM (02)"),
+                       ("02_forward_vs_reference", "fPINN vs dense-grid reference (02)"),
+                       ("02_fdm_vs_reference", "FDM 64x100 vs dense-grid reference (02)")]:
         path = os.path.join(RESULTS, f"metrics_{key}.csv")
         if not os.path.exists(path):
             continue
@@ -94,6 +96,11 @@ def build_tables():
             for case, n, a, b in rows:
                 writer.writerow([case, n, np.mean(a), np.std(a, ddof=1) if n > 1 else 0.0,
                                  np.mean(b), np.std(b, ddof=1) if n > 1 else 0.0])
+
+    convergence = os.path.join(RESULTS, "12_fdm_convergence.md")
+    if os.path.exists(convergence):
+        with open(convergence) as f:
+            lines += ["", f.read().replace("# FDM convergence", "## FDM convergence (12)", 1)]
 
     with open(os.path.join(RESULTS, "tables.md"), "w") as f:
         f.write("\n".join(lines))
