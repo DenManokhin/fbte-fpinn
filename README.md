@@ -45,7 +45,8 @@ Every script is run from the repository root and writes its figures and tables i
 | `08_complexity_optimizer.py` | – | Adam vs Adam + L-BFGS |
 | `09_complexity_hardware.py` | – | CPU vs GPU training and inference time |
 | `10_complexity_fdm_compare.py` | Fig. 6 | FDM vs fPINN computation time |
-| `11_inverse_fdm_baseline.py` | – | Baseline for the inverse problem: FDM + nonlinear least squares, on the data of script 05 and over 50 noise realisations per SNR (`--realisations N`) |
+| `11_inverse_fdm_baseline.py` | – | Baseline for the inverse problem: FDM + nonlinear least squares, on the data of script 05 (`--fpinn TAG` for a non-default setting) and over 50 noise realisations per SNR (`--realisations N`) |
+| `sweep_noise.py` | – | Runs script 05 with several training settings and seeds in parallel |
 
 Command line options:
 
@@ -56,6 +57,24 @@ Command line options:
   `for s in 1 2 3 4 5; do python 05_fig8_9_inverse_noise.py --seed $s; done`.
 
 On Apple Silicon (MPS) the scripts run in float32, elsewhere in float64.
+
+### Noise robustness of the inverse problem (script 05 options)
+
+With no options script 05 runs the paper's setting. The options below change the training to study
+why the fPINN fails at SNR 10 and 5 (`python 05_fig8_9_inverse_noise.py --help` lists them all):
+`--w-data`, `--w-pde`, `--w-pde-start` (PDE weight ramp), `--stage1`, `--stage2`, `--lbfgs N`
+(L-BFGS after stage 2), `--width`, `--depth`, `--l2`, `--ic-bc` (loss on the known IC/BC),
+`--val-frac` (early stopping on held-out points) and `--snrs`. A non-default setting writes to
+`results/05_inverse_noise_<tag>_seed{N}.npz` (`--tag`, or a tag built from the options), so the
+paper's files are not overwritten. The noise is the same as in the paper's runs for the same seed.
+
+`sweep_noise.py` runs several settings in parallel, and `11_inverse_fdm_baseline.py --fpinn <tag>`
+fits FDM + least squares to the same data and writes the comparison to `results/11_same_data_<tag>.md`:
+
+```bash
+python sweep_noise.py --jobs 3 --seeds 1 2 3 4 5 --snrs 50 20 10 5 inf --config wd1_lbfgs="--w-data 1 --lbfgs 5000"
+python 11_inverse_fdm_baseline.py --fpinn wd1_lbfgs
+```
 
 ## Conventions
 

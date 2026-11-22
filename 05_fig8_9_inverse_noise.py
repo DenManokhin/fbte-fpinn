@@ -136,8 +136,9 @@ def run_experiment():
             dt = (P["T_RANGE"][1] - P["T_RANGE"][0]) / (P["N_TIME"] - 1)
             domain_len = P["X_RANGE"][1] - P["X_RANGE"][0]
 
-            M_t = torch_l1_matrix(P["N_TIME"], curr_alpha, dt, device)
-            M_s = torch_riesz_matrix(P["N_SPACE"], curr_beta, domain_len, device)
+            # device and dtype of the inputs, so the same function runs in the float64 L-BFGS stage on the CPU
+            M_t = torch_l1_matrix(P["N_TIME"], curr_alpha, dt, x.device, dtype=x.dtype)
+            M_s = torch_riesz_matrix(P["N_SPACE"], curr_beta, domain_len, x.device, dtype=x.dtype)
 
             u = y[:, 0:1].view(P["N_TIME"], P["N_SPACE"])
             v = y[:, 1:2].view(P["N_TIME"], P["N_SPACE"])
@@ -157,7 +158,7 @@ def run_experiment():
             def ic_bc_loss(inputs, outputs, model):
                 u = outputs[:, 0].view(P["N_TIME"], P["N_SPACE"])
                 v = outputs[:, 1].view(P["N_TIME"], P["N_SPACE"])
-                ic = torch.mean((u[0] - u0) ** 2) + torch.mean(v[0] ** 2)
+                ic = torch.mean((u[0] - u0.to(u)) ** 2) + torch.mean(v[0] ** 2)
                 bc = torch.mean(u[:, [0, -1]] ** 2) + torch.mean(v[:, [0, -1]] ** 2)
                 return ic + bc
             extra_losses.append(ic_bc_loss)
@@ -230,15 +231,23 @@ def run_experiment():
         if CFG["lbfgs"] > 0:
             # torch L-BFGS with a strong-Wolfe line search. DeepXDE's L-BFGS has no line search and in
             # float32 often stops after a few iterations, so the network and alpha, beta are optimised here.
-            # In float32 the L-BFGS direction is sometimes not a descent direction and torch stops; L-BFGS
-            # is then restarted with an empty history, until --lbfgs iterations or 3 short attempts in a row.
-            weights = torch.as_tensor([CFG["w_data"], CFG["w_pde"]] + extra_weights, device=device)
+            # It runs on the CPU in float64: in float32 (MPS) the gradient near the end of Adam is too
+            # inaccurate for the line search, which then finds no decrease and stops after a few iterations.
+            # If it still stops early, it is restarted with an empty history, until --lbfgs iterations
+            # or 3 short attempts in a row.
+            cpu64 = dict(device="cpu", dtype=torch.float64)
+            model_inv.net.to("cpu").to(torch.float64)  # in two steps: MPS tensors cannot be cast to float64
+            for var in (alpha_raw, beta_raw):
+                var.data = var.data.to("cpu").to(torch.float64)
+            grid64 = torch.as_tensor(grid_np, **cpu64)
+            y64 = torch.as_tensor(y_patient, **cpu64)
+            weights = torch.as_tensor([CFG["w_data"], CFG["w_pde"]] + extra_weights, **cpu64)
             params = list(model_inv.net.parameters()) + [alpha_raw, beta_raw]
 
             def weighted_losses():
-                return torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv)) * weights
+                return torch.stack(data_inv.losses(y64, model_inv.net(grid64), None, grid64, model_inv)) * weights
 
-            total, attempts, short = 0, 0, 0
+            total, attempts, short, n_bad = 0, 0, 0, [0]
             while total < CFG["lbfgs"] and short < 3:
                 opt = torch.optim.LBFGS(params, lr=1.0, max_iter=CFG["lbfgs"] - total, history_size=50,
                                         line_search_fn="strong_wolfe", tolerance_grad=1e-9, tolerance_change=0.0)
@@ -247,6 +256,17 @@ def run_experiment():
                     opt.zero_grad()
                     loss = torch.sum(weighted_losses())
                     loss.backward()
+                    if not torch.isfinite(loss):
+                        # A trial step of the line search can reach alpha = 1 or beta = 2 in float32, where
+                        # the loss or its gradient is not finite; a large loss makes the line search step back.
+                        n_bad[0] += 1
+                        for p in params:
+                            p.grad.zero_()
+                        return torch.tensor(1e10, **cpu64)
+                    for p in params:
+                        if not torch.isfinite(p.grad).all():
+                            n_bad[0] += 1
+                            p.grad.nan_to_num_(0.0, 0.0, 0.0)
                     return loss
 
                 opt.step(closure)
@@ -256,7 +276,7 @@ def run_experiment():
                 short = short + 1 if n < 10 else 0
             with torch.no_grad():
                 losses = weighted_losses()
-            print(f"L-BFGS: {total} iterations in {attempts} attempts, "
+            print(f"L-BFGS: {total} iterations in {attempts} attempts, {n_bad[0]} non-finite evaluations, "
                   f"weighted losses {[f'{v:.3e}' for v in losses.tolist()]}")
             record_variables(model_inv)
 
