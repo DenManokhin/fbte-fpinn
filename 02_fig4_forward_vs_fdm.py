@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 from src.physics import PARAMS
 from src.fdm_solver import FDMSolver
+from src.reference import reference_solution, REFINE_X, REFINE_T
 from src.models import ForwardGridData
 from src.utils import select_device, set_reproducible, configure_precision, calculate_metrics, save_metrics_to_csv, ensure_results_dir
 
@@ -87,6 +88,20 @@ def run_experiment():
 
     save_metrics_to_csv(u_metrics, v_metrics, "results/metrics_02_forward_vs_fdm.csv")
     print("Metrics saved to results/metrics_02_forward_vs_fdm.csv")
+
+    # 5. Both solutions against a dense-grid reference. The fPINN residual uses the same discrete
+    # operators on the same grid as the FDM solver, so the comparison above only shows how well the
+    # network solves the discrete system; the error of either method against the solution of the
+    # equation itself needs a reference that is much more accurate than the 64x100 FDM solution.
+    _, _, u_ref, v_ref = reference_solution(PARAMS, REFINE_X, REFINE_T)
+    for name, (u_m, v_m) in {"forward_vs_reference": (u_pred, v_pred),
+                             "fdm_vs_reference": (u_fdm, v_fdm)}.items():
+        u_metrics = calculate_metrics(u_ref, u_m)
+        v_metrics = calculate_metrics(v_ref, v_m)
+        print(f"--- {name} (reference: FDM on the {REFINE_X}x/{REFINE_T}x refined grid) ---")
+        print(f"  RelL2 u {u_metrics['RelL2']:.4e}  v {v_metrics['RelL2']:.4e}; "
+              f"MaxAbs u {u_metrics['MaxAbs']:.4e}  v {v_metrics['MaxAbs']:.4e}")
+        save_metrics_to_csv(u_metrics, v_metrics, f"results/metrics_02_{name}.csv")
 
 if __name__ == "__main__":
     run_experiment()

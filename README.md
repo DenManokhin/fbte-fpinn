@@ -45,6 +45,7 @@ Every script is run from the repository root and writes its figures and tables i
 | `08_complexity_optimizer.py` | – | Adam vs Adam + L-BFGS |
 | `09_complexity_hardware.py` | – | CPU vs GPU training and inference time |
 | `10_complexity_fdm_compare.py` | Fig. 6 | FDM vs fPINN computation time |
+| `12_fdm_convergence.py` | – | Convergence of the FDM baseline in t and x, error of the 64 × 100 FDM solution against the dense reference, check against the exact solution for G = 0 |
 
 Command line options:
 
@@ -74,6 +75,11 @@ On Apple Silicon (MPS) the scripts run in float32, elsewhere in float64.
   fixed by the initial and boundary conditions (`src/physics.py::interior_mask`).
 * The inverse problem (scripts 04, 05) uses the 16 × 25 grid described in the paper
   (`INVERSE_GRID` in `src/physics.py`); the forward problem uses 64 × 100.
+* The FDM solution on 64 × 100 is not converged: its own relative L2 error is ≈1.7 % (u) and ≈2.2 % (v),
+  almost all of it from the time step. Script 02 therefore also compares the fPINN and the 64 × 100 FDM
+  solution with a reference from the same scheme on a nested grid 8× finer in x and 32× finer in t
+  (`src/reference.py`, cached in `results/reference_*.npz`; tables `metrics_02_forward_vs_reference.csv`
+  and `metrics_02_fdm_vs_reference.csv`). The reference's own error is ≈30× smaller (script 12).
 * Noise is added as in eq. (28): SNR = max|M| / σ, with the same σ for the real and imaginary parts.
 
 ## Tests
