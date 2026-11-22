@@ -228,11 +228,27 @@ def run_experiment():
         model_inv.train(iterations=CFG["stage2"], callbacks=stage2_callbacks, batch_size=len(grid_np))
 
         if CFG["lbfgs"] > 0:
-            # L-BFGS steps by a variable number of iterations, so the values are recorded once at the end
-            dde.optimizers.set_LBFGS_options(maxiter=CFG["lbfgs"])
-            model_inv.compile("L-BFGS", loss_weights=[CFG["w_data"], CFG["w_pde"]] + extra_weights,
-                              external_trainable_variables=[alpha_raw, beta_raw])
-            model_inv.train(batch_size=len(grid_np))
+            # torch L-BFGS with a strong-Wolfe line search. DeepXDE's L-BFGS has no line search and in
+            # float32 often stops after a few iterations, so the network and alpha, beta are optimised here.
+            weights = torch.as_tensor([CFG["w_data"], CFG["w_pde"]] + extra_weights, device=device)
+            opt = torch.optim.LBFGS(list(model_inv.net.parameters()) + [alpha_raw, beta_raw], lr=1.0,
+                                    max_iter=CFG["lbfgs"], history_size=50, line_search_fn="strong_wolfe",
+                                    tolerance_grad=1e-9, tolerance_change=0.0)
+            n_eval = [0]
+
+            def closure():
+                opt.zero_grad()
+                losses = torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv))
+                loss = torch.sum(losses * weights)
+                loss.backward()
+                n_eval[0] += 1
+                return loss
+
+            opt.step(closure)
+            with torch.no_grad():
+                losses = torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv)) * weights
+            print(f"L-BFGS: {opt.state_dict()['state'][0]['n_iter']} iterations, {n_eval[0]} evaluations, "
+                  f"weighted losses {[f'{v:.3e}' for v in losses.tolist()]}")
             record_variables(model_inv)
 
         if best["step"] is not None:
