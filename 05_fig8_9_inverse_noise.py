@@ -230,24 +230,33 @@ def run_experiment():
         if CFG["lbfgs"] > 0:
             # torch L-BFGS with a strong-Wolfe line search. DeepXDE's L-BFGS has no line search and in
             # float32 often stops after a few iterations, so the network and alpha, beta are optimised here.
+            # In float32 the L-BFGS direction is sometimes not a descent direction and torch stops; L-BFGS
+            # is then restarted with an empty history, until --lbfgs iterations or 3 short attempts in a row.
             weights = torch.as_tensor([CFG["w_data"], CFG["w_pde"]] + extra_weights, device=device)
-            opt = torch.optim.LBFGS(list(model_inv.net.parameters()) + [alpha_raw, beta_raw], lr=1.0,
-                                    max_iter=CFG["lbfgs"], history_size=50, line_search_fn="strong_wolfe",
-                                    tolerance_grad=1e-9, tolerance_change=0.0)
-            n_eval = [0]
+            params = list(model_inv.net.parameters()) + [alpha_raw, beta_raw]
 
-            def closure():
-                opt.zero_grad()
-                losses = torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv))
-                loss = torch.sum(losses * weights)
-                loss.backward()
-                n_eval[0] += 1
-                return loss
+            def weighted_losses():
+                return torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv)) * weights
 
-            opt.step(closure)
+            total, attempts, short = 0, 0, 0
+            while total < CFG["lbfgs"] and short < 3:
+                opt = torch.optim.LBFGS(params, lr=1.0, max_iter=CFG["lbfgs"] - total, history_size=50,
+                                        line_search_fn="strong_wolfe", tolerance_grad=1e-9, tolerance_change=0.0)
+
+                def closure():
+                    opt.zero_grad()
+                    loss = torch.sum(weighted_losses())
+                    loss.backward()
+                    return loss
+
+                opt.step(closure)
+                n = opt.state_dict()["state"][0]["n_iter"]
+                total += n
+                attempts += 1
+                short = short + 1 if n < 10 else 0
             with torch.no_grad():
-                losses = torch.stack(data_inv.losses(y_t, model_inv.net(grid_t), None, grid_t, model_inv)) * weights
-            print(f"L-BFGS: {opt.state_dict()['state'][0]['n_iter']} iterations, {n_eval[0]} evaluations, "
+                losses = weighted_losses()
+            print(f"L-BFGS: {total} iterations in {attempts} attempts, "
                   f"weighted losses {[f'{v:.3e}' for v in losses.tolist()]}")
             record_variables(model_inv)
 
