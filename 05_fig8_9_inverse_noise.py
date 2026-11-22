@@ -105,7 +105,10 @@ def run_experiment():
              snrs=np.array(snrs),
              alpha=np.array([all_alpha_history[s] for s in snrs]),
              beta=np.array([all_beta_history[s] for s in snrs]),
-             alpha_true=P["ALPHA"], beta_true=P["BETA"])
+             alpha_true=P["ALPHA"], beta_true=P["BETA"],
+             # the exact data each run was trained on, so 11_inverse_fdm_baseline.py can fit the same data
+             u_data=np.array([noisy_u[s] for s in snrs]),
+             v_data=np.array([noisy_v[s] for s in snrs]))
 
     # Example of the noisy data (Fig. 12): signal magnitude |M| over time at the node closest to x = 0
     ix = int(np.argmin(np.abs(x_g)))
