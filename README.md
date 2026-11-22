@@ -76,6 +76,26 @@ python sweep_noise.py --jobs 3 --seeds 1 2 3 4 5 --snrs 50 20 10 5 inf --config 
 python 11_inverse_fdm_baseline.py --fpinn wd1_lbfgs
 ```
 
+Why the paper's setting fails at low SNR: when the network reproduces the noise, the PDE residual
+evaluated on it is smallest for the lowest orders (alpha -> 0, beta -> 1, the bounds of the sigmoid),
+because they amplify the noise least. With data weight 100 and PDE weight 1 the network does fit the
+noise. With equal weights (`--w-data 1`) the PDE keeps the fit smooth, but Adam then converges slowly
+(beta about 1.49 on clean data after 15000 iterations), which an L-BFGS stage fixes (`--lbfgs 5000`;
+it runs on the CPU in float64, because in float32 the line search stalls).
+
+Recovered alpha, beta (mean ± std over seeds 1–5, on the 16 × 25 grid, true alpha = 0.8, beta = 1.6);
+FDM-LS is fitted to the same noisy data as the fPINN:
+
+| Case | fPINN, paper setting¹ | fPINN `--w-data 1 --lbfgs 5000` | FDM + least squares |
+|---|---|---|---|
+| clean data | 0.798 ± 0.001, 1.591 ± 0.004 | 0.799 ± 0.001, 1.597 ± 0.002 | 0.800, 1.600 |
+| SNR 50 | 0.795 ± 0.012, 1.584 ± 0.015 | 0.800 ± 0.007, 1.597 ± 0.016 | 0.802 ± 0.006, 1.594 ± 0.012 |
+| SNR 20 | 0.777 ± 0.022, 1.521 ± 0.056 | 0.804 ± 0.024, 1.606 ± 0.039 | 0.810 ± 0.015, 1.611 ± 0.021 |
+| SNR 10 | 0.008 ± 0.008, 1.001 ± 0.000 | 0.803 ± 0.056, 1.629 ± 0.127 | 0.808 ± 0.046, 1.642 ± 0.102 |
+| SNR 5 | 0.001 ± 0.000, 1.001 ± 0.000 | 0.754 ± 0.096, 1.501 ± 0.138 | 0.792 ± 0.071, 1.587 ± 0.096 |
+
+¹ seeds 42, 1–4 (`results/table_inverse.csv`); the noise for a seed is the same in all settings.
+
 ## Conventions
 
 * The equation is eq. (2) of the paper, split into real and imaginary parts (C = γG, R = 1/T₂):
