@@ -45,6 +45,7 @@ Every script is run from the repository root and writes its figures and tables i
 | `08_complexity_optimizer.py` | – | Adam vs Adam + L-BFGS |
 | `09_complexity_hardware.py` | – | CPU vs GPU training and inference time |
 | `10_complexity_fdm_compare.py` | Fig. 6 | FDM vs fPINN computation time |
+| `11_inverse_fdm_baseline.py` | – | Baseline for the inverse problem: FDM + nonlinear least squares, on the data of script 05 and over 50 noise realisations per SNR (`--realisations N`) |
 
 Command line options:
 
