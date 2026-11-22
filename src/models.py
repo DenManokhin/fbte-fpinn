@@ -55,15 +55,28 @@ class ForwardGridData(dde.data.Data):
     def test(self): return self.train_x, self.train_y
 
 class InverseGridData(dde.data.Data):
-    def __init__(self, X_train, y_train, pde_func):
+    """Data + PDE losses of the inverse problem.
+
+    Optional (off by default, so the paper's setting is unchanged):
+      data_mask    -- boolean array over the grid points; only these points enter the data loss
+                      (the others are held out, e.g. for early stopping).
+      extra_losses -- callables f(inputs, outputs, model) -> scalar, appended after [data, PDE]
+                      (e.g. a known IC/BC term or an L2 penalty on the network weights).
+    """
+    def __init__(self, X_train, y_train, pde_func, data_mask=None, extra_losses=()):
         self.train_x = X_train
         self.train_y = y_train
         self.pde_func = pde_func
+        self.data_mask = None if data_mask is None else torch.as_tensor(data_mask, dtype=torch.bool)
+        self.extra_losses = list(extra_losses)
 
     def losses(self, targets, outputs, loss_fn, inputs, model, aux=None):
-        loss_data = torch.mean((outputs - targets) ** 2)
+        err = outputs - targets
+        if self.data_mask is not None:
+            err = err[self.data_mask.to(err.device)]
+        loss_data = torch.mean(err ** 2)
         loss_physics = torch.mean(self.pde_func(inputs, outputs) ** 2)
-        return [loss_data, loss_physics]
+        return [loss_data, loss_physics] + [f(inputs, outputs, model) for f in self.extra_losses]
 
     def train_next_batch(self, batch_size=None): return self.train_x, self.train_y
     def test(self): return self.train_x, self.train_y

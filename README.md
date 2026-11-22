@@ -45,7 +45,8 @@ Every script is run from the repository root and writes its figures and tables i
 | `08_complexity_optimizer.py` | – | Adam vs Adam + L-BFGS |
 | `09_complexity_hardware.py` | – | CPU vs GPU training and inference time |
 | `10_complexity_fdm_compare.py` | Fig. 6 | FDM vs fPINN computation time |
-| `11_inverse_fdm_baseline.py` | – | Baseline for the inverse problem: FDM + nonlinear least squares, on the data of script 05 and over 50 noise realisations per SNR (`--realisations N`) |
+| `11_inverse_fdm_baseline.py` | – | Baseline for the inverse problem: FDM + nonlinear least squares, on the data of script 05 (`--fpinn TAG` for a non-default setting) and over 50 noise realisations per SNR (`--realisations N`) |
+| `sweep_noise.py` | – | Runs script 05 with several training settings and seeds in parallel |
 
 Command line options:
 
@@ -56,6 +57,44 @@ Command line options:
   `for s in 1 2 3 4 5; do python 05_fig8_9_inverse_noise.py --seed $s; done`.
 
 On Apple Silicon (MPS) the scripts run in float32, elsewhere in float64.
+
+### Noise robustness of the inverse problem (script 05 options)
+
+With no options script 05 runs the paper's setting. The options below change the training to study
+why the fPINN fails at SNR 10 and 5 (`python 05_fig8_9_inverse_noise.py --help` lists them all):
+`--w-data`, `--w-pde`, `--w-pde-start` (PDE weight ramp), `--stage1`, `--stage2`, `--lbfgs N`
+(L-BFGS after stage 2), `--width`, `--depth`, `--l2`, `--ic-bc` (loss on the known IC/BC),
+`--val-frac` (early stopping on held-out points) and `--snrs`. A non-default setting writes to
+`results/05_inverse_noise_<tag>_seed{N}.npz` (`--tag`, or a tag built from the options), so the
+paper's files are not overwritten. The noise is the same as in the paper's runs for the same seed.
+
+`sweep_noise.py` runs several settings in parallel, and `11_inverse_fdm_baseline.py --fpinn <tag>`
+fits FDM + least squares to the same data and writes the comparison to `results/11_same_data_<tag>.md`:
+
+```bash
+python sweep_noise.py --jobs 3 --seeds 1 2 3 4 5 --snrs 50 20 10 5 inf --config wd1_lbfgs="--w-data 1 --lbfgs 5000"
+python 11_inverse_fdm_baseline.py --fpinn wd1_lbfgs
+```
+
+Why the paper's setting fails at low SNR: when the network reproduces the noise, the PDE residual
+evaluated on it is smallest for the lowest orders (alpha -> 0, beta -> 1, the bounds of the sigmoid),
+because they amplify the noise least. With data weight 100 and PDE weight 1 the network does fit the
+noise. With equal weights (`--w-data 1`) the PDE keeps the fit smooth, but Adam then converges slowly
+(beta about 1.49 on clean data after 15000 iterations), which an L-BFGS stage fixes (`--lbfgs 5000`;
+it runs on the CPU in float64, because in float32 the line search stalls).
+
+Recovered alpha, beta (mean ± std over seeds 1–5, on the 16 × 25 grid, true alpha = 0.8, beta = 1.6);
+FDM-LS is fitted to the same noisy data as the fPINN:
+
+| Case | fPINN, paper setting¹ | fPINN `--w-data 1 --lbfgs 5000` | FDM + least squares |
+|---|---|---|---|
+| clean data | 0.798 ± 0.001, 1.591 ± 0.004 | 0.799 ± 0.001, 1.597 ± 0.002 | 0.800, 1.600 |
+| SNR 50 | 0.795 ± 0.012, 1.584 ± 0.015 | 0.800 ± 0.007, 1.597 ± 0.016 | 0.802 ± 0.006, 1.594 ± 0.012 |
+| SNR 20 | 0.777 ± 0.022, 1.521 ± 0.056 | 0.804 ± 0.024, 1.606 ± 0.039 | 0.810 ± 0.015, 1.611 ± 0.021 |
+| SNR 10 | 0.008 ± 0.008, 1.001 ± 0.000 | 0.803 ± 0.056, 1.629 ± 0.127 | 0.808 ± 0.046, 1.642 ± 0.102 |
+| SNR 5 | 0.001 ± 0.000, 1.001 ± 0.000 | 0.754 ± 0.096, 1.501 ± 0.138 | 0.792 ± 0.071, 1.587 ± 0.096 |
+
+¹ seeds 42, 1–4 (`results/table_inverse.csv`); the noise for a seed is the same in all settings.
 
 ## Conventions
 
